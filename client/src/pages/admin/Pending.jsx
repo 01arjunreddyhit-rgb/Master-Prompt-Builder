@@ -95,9 +95,13 @@ function PendingCard({ p, onAction, busy, selected, onSelect }) {
 }
 
 export default function AdminPending() {
-  const [pending, setPending] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [pending, setPending]   = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState(new Set());
+  const [filter, setFilter]     = useState('PENDING');
+  const [search, setSearch]     = useState('');
+  const [busy, setBusy]         = useState(null);
+  const [msg, setMsg]           = useState(null);
 
   const load = () => {
     setLoading(true);
