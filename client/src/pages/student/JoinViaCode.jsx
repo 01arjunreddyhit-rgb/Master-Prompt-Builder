@@ -18,6 +18,8 @@ export default function JoinViaCode() {
   const [step, setStep] = useState('lookup'); // 'lookup' | 'preview' | 'done'
   const [msg, setMsg] = useState(null);
 
+  const [adminProfile, setAdminProfile] = useState(null);
+
   const lookupCode = async () => {
     if (!code.trim()) return;
     setLoading(true); setMsg(null);
@@ -36,8 +38,20 @@ export default function JoinViaCode() {
     try {
       const { data } = await api.get(`/search/elections?q=${encodeURIComponent(query)}`);
       setResults(data.data || []);
+      setAdminProfile(null);
     } catch (err) {
       setMsg({ type: 'error', text: 'Search failed.' });
+    } finally { setLoading(false); }
+  };
+
+  const loadAdminProfile = async (adminId) => {
+    setLoading(true); setMsg(null);
+    try {
+      const { data } = await api.get(`/search/admin/${adminId}`);
+      setAdminProfile(data);
+      setStep('admin_profile');
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Failed to load profile.' });
     } finally { setLoading(false); }
   };
 
@@ -66,7 +80,7 @@ export default function JoinViaCode() {
           <div style={{ maxWidth: 600 }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
               <Button variant={mode === 'code' ? 'primary' : 'surface'} onClick={() => setMode('code')}>Direct Code</Button>
-              <Button variant={mode === 'search' ? 'primary' : 'surface'} onClick={() => setMode('search')}>Search Admins/Elections</Button>
+              <Button variant={mode === 'search' ? 'primary' : 'surface'} onClick={() => setMode('search')}>Search Admins/Institutions</Button>
             </div>
 
             {mode === 'code' ? (
@@ -87,17 +101,60 @@ export default function JoinViaCode() {
                 </Card>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {results.map(r => (
-                    <Card key={r.election_id} style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => { setElection(r); setStep('preview'); }}>
+                    <Card key={r.election_id} style={{ padding: '16px 20px', cursor: 'pointer', transition: 'transform 0.2s' }} className="hover-lift" onClick={() => { setElection(r); setStep('preview'); }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: '1rem' }}>{r.election_name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>{r.admin_name} · {r.college_name}</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>{r.election_name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginTop: 2 }}>
+                            Managed by <span style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); loadAdminProfile(r.admin_id); }}>{r.admin_name}</span> · {r.college_name}
+                          </div>
                         </div>
                         <Badge variant="blue">{r.status}</Badge>
                       </div>
                     </Card>
                   ))}
                   {results.length === 0 && query.length >= 2 && !loading && (
+                    <EmptyState title="No matches" message="We couldn't find any elections or admins matching your search." />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 'admin_profile' && adminProfile && (
+          <div style={{ maxWidth: 650 }}>
+            <div style={{ marginBottom: 20 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStep('lookup')}>← Back to Search</button>
+            </div>
+            <Card style={{ marginBottom: 24, background: 'linear-gradient(135deg, var(--surface) 0%, var(--muted-bg) 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyCenter: 'center', fontSize: '1.8rem', fontWeight: 800 }}>
+                   {adminProfile.admin.admin_name[0]}
+                </div>
+                <div>
+                   <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)' }}>{adminProfile.admin.admin_name}</h2>
+                   <div style={{ color: 'var(--text-3)', fontSize: '0.9rem' }}>{adminProfile.admin.college_name}</div>
+                </div>
+              </div>
+            </Card>
+
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 16 }}>Available Elections</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {adminProfile.elections.map(e => (
+                <Card key={e.election_id} style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => { setElection(e); setStep('preview'); }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>{e.election_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>{e.semester_tag || 'General'} · Code: {e.election_code}</div>
+                    </div>
+                    <Button variant="surface" className="btn-sm">View Details</Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
                     <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-4)' }}>No matching elections found.</div>
                   )}
                 </div>

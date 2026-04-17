@@ -52,10 +52,8 @@ function ChoiceResultsTable({ summary }) {
 export default function AdminResults() {
   const { selectedElection } = useElection();
   const navigate = useNavigate();
-  const [choices, setChoices] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState(null);
+  const [selectedSessions, setSelectedSessions] = useState([]);
+  const [comparison, setComparison] = useState(null);
 
   const load = useCallback(async () => {
     if (!selectedElection) {
@@ -79,6 +77,19 @@ export default function AdminResults() {
 
   useEffect(() => { load(); }, [load]);
 
+  const toggleSession = (id) => {
+    setSelectedSessions(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : (prev.length < 2 ? [...prev, id] : prev)
+    );
+  };
+
+  const handleCompare = () => {
+    if (selectedSessions.length !== 2) return;
+    const s1 = sessions.find(s => s.session_id === selectedSessions[0]);
+    const s2 = sessions.find(s => s.session_id === selectedSessions[1]);
+    setComparison({ s1, s2 });
+  };
+
   if (!selectedElection && !loading) return null;
 
   return (
@@ -98,34 +109,85 @@ export default function AdminResults() {
         {loading ? (
           <div style={{ textAlign:'center', padding:60 }}><Spinner dark /></div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24 }}>
             <div>
               <Card style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Locked Choice Results</h3>
+                  {choices && <Badge variant="navy">{choices.summary?.length || 0} Courses</Badge>}
                 </div>
                 {choices ? <ChoiceResultsTable summary={choices.summary || []} /> : <div style={{ padding: 40, textAlign: 'center' }}>No results locked.</div>}
               </Card>
             </div>
             <div>
-              <Card>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 16 }}>Saved Sessions</h3>
+              <Card style={{ position: 'sticky', top: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Saved Sessions</h3>
+                  {selectedSessions.length === 2 && (
+                    <button className="btn btn-primary btn-sm" onClick={handleCompare}>Compare</button>
+                  )}
+                </div>
                 {sessions.length === 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-3)' }}>No sessions created for this election yet.</p>
+                  <EmptyState title="No Sessions" message="No allocation sessions found for this election." />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {sessions.map(s => (
-                      <div key={s.session_id} style={{ padding: 12, background: 'var(--muted-bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{s.session_name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
-                      </div>
-                    ))}
+                    {sessions.map(s => {
+                      const selected = selectedSessions.includes(s.session_id);
+                      return (
+                        <div 
+                          key={s.session_id} 
+                          onClick={() => toggleSession(s.session_id)}
+                          style={{ 
+                            padding: 14, 
+                            background: selected ? 'var(--accent-light)' : 'var(--surface)', 
+                            borderRadius: 14, 
+                            border: `1.5px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: selected ? 'var(--accent)' : 'var(--text)' }}>{s.session_name}</div>
+                            {selected && <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem' }}>✓</div>}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 4, fontFamily: 'var(--mono)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-                <Button variant="primary" style={{ width: '100%', marginTop: 20 }}>+ New Session</Button>
+                <div style={{ marginTop: 20, fontSize: '0.75rem', color: 'var(--text-4)', textAlign: 'center' }}>
+                  Select two sessions to compare metrics side-by-side.
+                </div>
               </Card>
             </div>
           </div>
+        )}
+
+        {comparison && (
+          <Modal title="Compare Allocation Sessions" onClose={() => setComparison(null)} maxWidth={700}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              {[comparison.s1, comparison.s2].map((s, i) => (
+                <div key={i} style={{ background: 'var(--muted-bg)', borderRadius: 16, padding: 20, border: '1px solid var(--border)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 12, color: 'var(--accent)' }}>{s.session_name}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ padding: '10px 14px', background: 'white', borderRadius: 12, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Created At</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{new Date(s.created_at).toLocaleString()}</div>
+                    </div>
+                    {/* Placeholders for actual metric keys if they exist in DB */}
+                    <div style={{ padding: '10px 14px', background: 'white', borderRadius: 12, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Session ID</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', fontFamily: 'var(--mono)' }}>#{s.session_id}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 20, padding: 16, background: 'var(--accent-light)', borderRadius: 12, color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center' }}>
+               Detailed row-by-row differences can be viewed in the full export.
+            </div>
+          </Modal>
         )}
       </main>
     </div>
