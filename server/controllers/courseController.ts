@@ -256,4 +256,56 @@ const deleteCourse = async (req, res) => {
   }
 };
 
-export { createCourse, getCourses, getCourseLibrary, updateCourse, deleteCourse  };
+const createLibraryCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight } = req.body;
+    if (!course_name) return res.status(400).json({ success: false, message: 'course_name required.' });
+
+    await syncCourseLibraryEntry(admin_id, {
+      course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight
+    });
+    res.status(201).json({ success: true, message: 'Library course saved.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+const updateLibraryCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { id } = req.params;
+    const { course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight } = req.body;
+
+    await pool.execute(
+      `UPDATE course_library SET
+         course_name=COALESCE(?,course_name),
+         subject_code=COALESCE(?,subject_code),
+         description=COALESCE(?,description),
+         min_enrollment=COALESCE(?,min_enrollment),
+         max_enrollment=COALESCE(?,max_enrollment),
+         classes_per_course=COALESCE(?,classes_per_course),
+         credit_weight=COALESCE(?,credit_weight),
+         updated_at=NOW()
+       WHERE library_course_id=? AND admin_id=?`,
+      [course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight, id, admin_id]
+    );
+    res.json({ success: true, message: 'Library course updated.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+const deleteLibraryCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { id } = req.params;
+    await pool.execute('DELETE FROM course_library WHERE library_course_id=? AND admin_id=?', [id, admin_id]);
+    res.json({ success: true, message: 'Library course deleted.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+export { createCourse, getCourses, getCourseLibrary, updateCourse, deleteCourse, createLibraryCourse, updateLibraryCourse, deleteLibraryCourse };
+

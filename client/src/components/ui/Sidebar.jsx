@@ -37,7 +37,8 @@ export function AdminSidebar() {
         <div className="nav-section-label">Election</div>
         <NavItem icon="🗳" label="Election Control" path="/admin/election"   navigate={nav} location={location} />
         <NavItem icon="🔗" label="CAV Panel"        path="/admin/cav"        navigate={nav} location={location} />
-        <NavItem icon="📚" label="Courses"          path="/admin/courses"    navigate={nav} location={location} />
+        <NavItem icon="📚" label="Election Courses" path="/admin/courses"    navigate={nav} location={location} />
+        <NavItem icon="🏛" label="Course Library"   path="/admin/library"    navigate={nav} location={location} />
         <NavItem icon="👨‍🏫" label="Faculty"          path="/admin/faculty"    navigate={nav} location={location} />
         <NavItem icon="📊" label="Allocation Panel" path="/admin/allocation" navigate={nav} location={location} />
         <NavItem icon="📋" label="Results"          path="/admin/results"    navigate={nav} location={location} />

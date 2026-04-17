@@ -19,6 +19,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminStudents from './pages/admin/Students';
 import AdminPending from './pages/admin/Pending';
 import AdminCourses from './pages/admin/Courses';
+import CourseLibrary from './pages/admin/CourseLibrary';
 import AdminFaculty from './pages/admin/Faculty';
 import ElectionControl from './pages/admin/ElectionControl';
 import AllocationPanel from './pages/admin/AllocationPanel';
@@ -80,6 +81,7 @@ function AppRoutes() {
       <Route path="/admin/students"   element={<AdminRoute><AdminStudents /></AdminRoute>} />
       <Route path="/admin/pending"    element={<AdminRoute><AdminPending /></AdminRoute>} />
       <Route path="/admin/courses"    element={<AdminRoute><AdminCourses /></AdminRoute>} />
+      <Route path="/admin/library"    element={<AdminRoute><CourseLibrary /></AdminRoute>} />
       <Route path="/admin/faculty"    element={<AdminRoute><AdminFaculty /></AdminRoute>} />
       <Route path="/admin/election"   element={<AdminRoute><ElectionControl /></AdminRoute>} />
       <Route path="/admin/allocation" element={<AdminRoute><AllocationPanel /></AdminRoute>} />

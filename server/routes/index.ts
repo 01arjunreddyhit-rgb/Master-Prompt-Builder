@@ -52,9 +52,14 @@ router.put('/admin/password', auth, adminOnly, adminCtrl.changePassword);
 // ── COURSES ───────────────────────────────────────────────────
 router.post('/courses',                  auth, adminOnly, courseCtrl.createCourse);
 router.get('/courses',                   auth, courseCtrl.getCourses);
-router.get('/courses/library',           auth, adminOnly, courseCtrl.getCourseLibrary);
 router.put('/courses/:course_id',        auth, adminOnly, courseCtrl.updateCourse);
 router.delete('/courses/:course_id',     auth, adminOnly, courseCtrl.deleteCourse);
+
+// ── COURSE LIBRARY ────────────────────────────────────────────
+router.get('/courses/library',           auth, adminOnly, courseCtrl.getCourseLibrary);
+router.post('/courses/library',          auth, adminOnly, courseCtrl.createLibraryCourse);
+router.put('/courses/library/:id',       auth, adminOnly, courseCtrl.updateLibraryCourse);
+router.delete('/courses/library/:id',    auth, adminOnly, courseCtrl.deleteLibraryCourse);
 
 // ── STUDY GROUPS & FACULTY ────────────────────────────────────
 router.get('/faculty',                   auth, adminOnly, facultyCtrl.getFaculty);
