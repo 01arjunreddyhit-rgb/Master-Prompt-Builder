@@ -87,6 +87,7 @@ router.post('/elections/:election_id/start',     auth, adminOnly, electionCtrl.s
 router.post('/elections/:election_id/pause',     auth, adminOnly, electionCtrl.pauseElection);
 router.post('/elections/:election_id/resume',    auth, adminOnly, electionCtrl.resumeElection);
 router.post('/elections/:election_id/stop',      auth, adminOnly, electionCtrl.stopElection);
+router.delete('/elections/:election_id',        auth, adminOnly, electionCtrl.deleteElection);
 
 // ── STUDENT ───────────────────────────────────────────────────
 router.get('/student/dashboard',         auth, studentOnly, studentCtrl.getStudentDashboard);
@@ -135,3 +136,7 @@ router.get('/cav/:election_id/participants',   auth, adminOnly, cavCtrl.getParti
 router.post('/cav/participants/:participant_id/review', auth, adminOnly, cavCtrl.reviewParticipant);
 
 export default router;
+
+// Discovery
+router.get('/search/elections', electionCtrl.searchElections);
+router.get('/admins/:admin_id/profile', electionCtrl.getAdminProfile);

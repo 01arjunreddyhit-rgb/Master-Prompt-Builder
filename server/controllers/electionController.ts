@@ -33,12 +33,12 @@ const createElection = async (req, res) => {
 
     if (!election_name) return res.status(400).json({ success: false, message: 'election_name required.' });
 
-    const [active] = await pool.execute(
-      "SELECT election_id FROM elections WHERE admin_id=? AND status IN ('NOT_STARTED','ACTIVE')",
+    const [elecs] = await pool.execute(
+      "SELECT election_id FROM elections WHERE admin_id=?",
       [admin_id]
     );
-    if (active.length) {
-      return res.status(400).json({ success: false, message: 'You already have an active election.' });
+    if (elecs.length >= 50) {
+      return res.status(400).json({ success: false, message: 'Maximum limit of 50 elections reached. Please delete an old one.' });
     }
 
     const [result] = await pool.execute(
@@ -99,10 +99,12 @@ const updateElection = async (req, res) => {
 const getElections = async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT e.*,
+      `SELECT e.*, cav.election_code,
               (SELECT COUNT(*) FROM students s WHERE s.election_id=e.election_id) as student_count,
               (SELECT COUNT(*) FROM courses c WHERE c.election_id=e.election_id AND c.is_active=TRUE) as course_count
-       FROM elections e WHERE e.admin_id=? ORDER BY e.created_at DESC`,
+       FROM elections e 
+       LEFT JOIN election_cav cav ON cav.election_id = e.election_id
+       WHERE e.admin_id=? ORDER BY e.created_at DESC`,
       [req.user.id]
     );
     res.json({ success: true, data: rows });
@@ -251,6 +253,86 @@ const stopElection = async (req, res) => {
   } finally {
     conn.release();
   }
+// ── DELETE ELECTION (WITH CODE SAFETY) ────────────────────────
+const deleteElection = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { election_id } = req.params;
+    const { confirm_code } = req.body;
+    const admin_id = req.user.id;
+
+    await conn.beginTransaction();
+
+    // Verify code
+    const [cav] = await conn.execute('SELECT election_code FROM election_cav WHERE election_id=?', [election_id]);
+    if (!cav.length || cav[0].election_code !== confirm_code) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Invalid election code. Deletion aborted.' });
+    }
+
+    // Cascading delete
+    await conn.execute('DELETE FROM seats WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM student_tokens WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM courses WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM election_cav WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM election_results_lock WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM elections WHERE election_id=? AND admin_id=?', [election_id, admin_id]);
+
+    await conn.commit();
+    res.json({ success: true, message: 'Election deleted.' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Error deleting.' });
+  } finally {
+    conn.release();
+  }
 };
 
-export { createElection, updateElection, getElections, getElectionStatus, getChecklist, initElection, startElection, pauseElection, resumeElection, stopElection };
+// ── SEARCH ELECTIONS (FOR STUDENTS) ──────────────────────────
+const searchElections = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json({ success: true, data: [] });
+
+    const [rows] = await pool.execute(
+      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, 
+              a.admin_name, a.college_name, cav.election_code
+       FROM elections e
+       JOIN admins a ON e.admin_id = a.admin_id
+       JOIN election_cav cav ON e.election_id = cav.election_id
+       WHERE (e.election_name LIKE ? OR a.admin_name LIKE ? OR a.college_name LIKE ?)
+       AND e.status != 'STOPPED'
+       LIMIT 20`,
+      [`%${q}%`, `%${q}%`, `%${q}%`]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Search failed.' });
+  }
+};
+
+// ── GET ADMIN PUBLIC PROFILE ──────────────────────────────────
+const getAdminProfile = async (req, res) => {
+  try {
+    const { admin_id } = req.params;
+    const [admin] = await pool.execute('SELECT admin_name, college_name FROM admins WHERE admin_id=?', [admin_id]);
+    if (!admin.length) return res.status(404).json({ success: false, message: 'Admin not found.' });
+
+    const [elecs] = await pool.execute(
+      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, cav.election_code
+       FROM elections e
+       JOIN election_cav cav ON e.election_id = cav.election_id
+       WHERE e.admin_id=? AND e.status != 'STOPPED'`,
+      [admin_id]
+    );
+    res.json({ success: true, admin: admin[0], elections: elecs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+export { 
+  createElection, updateElection, getElections, getElectionStatus, getChecklist, 
+  initElection, startElection, pauseElection, resumeElection, stopElection, deleteElection,
+  searchElections, getAdminProfile
+};

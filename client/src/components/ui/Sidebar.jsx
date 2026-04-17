@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useElection } from '../../context/ElectionContext';
 import api from '../../services/api';
 
 function NavItem({ icon, label, path, badge, navigate, location }) {
@@ -16,6 +17,7 @@ function NavItem({ icon, label, path, badge, navigate, location }) {
 
 export function AdminSidebar() {
   const { user, logout } = useAuth();
+  const { selectedElection, selectElection } = useElection();
   const navigate  = useNavigate();
   const location  = useLocation();
   const nav = (p) => navigate(p);
@@ -34,18 +36,31 @@ export function AdminSidebar() {
         <div className="nav-section-label">Overview</div>
         <NavItem icon="◉" label="Dashboard"       path="/admin"            navigate={nav} location={location} />
 
-        <div className="nav-section-label">Election</div>
-        <NavItem icon="🗳" label="Election Control" path="/admin/election"   navigate={nav} location={location} />
-        <NavItem icon="🔗" label="CAV Panel"        path="/admin/cav"        navigate={nav} location={location} />
-        <NavItem icon="📚" label="Election Courses" path="/admin/courses"    navigate={nav} location={location} />
+        {selectedElection ? (
+          <>
+            <div className="nav-section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Current Election</span>
+              <button onClick={() => { selectElection(null); nav('/admin'); }} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>SWITCH</button>
+            </div>
+            <div style={{ marginBottom: 12, padding: '0 12px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedElection.election_name}</div>
+              <div style={{ fontSize: '0.6rem', color: 'var(--text-4)', fontFamily: 'var(--mono)' }}>{selectedElection.election_code}</div>
+            </div>
+            <NavItem icon="🗳" label="Control" path="/admin/election"   navigate={nav} location={location} />
+            <NavItem icon="🔗" label="CAV Panel"        path="/admin/cav"        navigate={nav} location={location} />
+            <NavItem icon="📚" label="Courses" path="/admin/courses"    navigate={nav} location={location} />
+            <NavItem icon="📊" label="Allocation" path="/admin/allocation" navigate={nav} location={location} />
+            <NavItem icon="📋" label="Results"          path="/admin/results"    navigate={nav} location={location} />
+          </>
+        ) : (
+          <div style={{ padding: '20px 12px', textAlign: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: 12, margin: '8px 12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', margin: 0 }}>Select an election from the dashboard to manage results.</p>
+          </div>
+        )}
         
         <div className="nav-section-label">Global Repositories</div>
         <NavItem icon="🏛" label="Course Library"   path="/admin/library"    navigate={nav} location={location} />
         <NavItem icon="👨‍🏫" label="Faculty"          path="/admin/faculty"    navigate={nav} location={location} />
-        <NavItem icon="📊" label="Allocation Panel" path="/admin/allocation" navigate={nav} location={location} />
-        <NavItem icon="📋" label="Results"          path="/admin/results"    navigate={nav} location={location} />
-
-        <div className="nav-section-label">Students</div>
         <NavItem icon="👥" label="Students"         path="/admin/students"   navigate={nav} location={location} />
         <NavItem icon="⏳" label="Pending"           path="/admin/pending"    navigate={nav} location={location} />
 

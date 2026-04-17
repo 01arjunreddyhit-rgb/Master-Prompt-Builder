@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, AuthProvider } from './context/AuthContext';
+import { ElectionProvider } from './context/ElectionContext';
 import { LoadingScreen } from './components/ui/index';
 
 // ── LAZY LOADED PAGES ─────────────────────────────────────────
@@ -106,9 +107,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ElectionProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ElectionProvider>
     </AuthProvider>
   );
 }

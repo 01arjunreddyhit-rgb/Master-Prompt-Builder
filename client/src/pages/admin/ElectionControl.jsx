@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useElection } from '../../context/ElectionContext';
 import { AdminSidebar } from '../../components/ui/Sidebar';
 import { StatusPill, Alert, Spinner, Modal, ProgressBar } from '../../components/ui/index';
 import api from '../../services/api';
@@ -75,9 +77,6 @@ function CAVCard({ electionId }) {
             style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(79,70,229,0.5)', background: 'rgba(79,70,229,0.15)', color: '#818CF8', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'var(--font)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             ↗ Preview Page
           </a>
-          <div style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', alignSelf: 'center' }}>
-            Share this code or link with participants
-          </div>
         </div>
       </div>
     </div>
@@ -161,13 +160,12 @@ function ElectionFormFields({ form, setF, setForm }) {
         </div>
       </div>
 
-      {/* Participant field visibility */}
       <div style={{ marginTop:8, padding:'14px 16px', background:'var(--muted-bg)', borderRadius:14, border:'1px solid var(--border)' }}>
         <div style={{ fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:4 }}>
           Join Page — Participant Field Visibility
         </div>
         <div style={{ fontSize:'0.74rem', color:'var(--text-4)', marginBottom:12, lineHeight:1.5 }}>
-          Control which fields are visible to other participants on the public join page. Display name is always shown.
+          Control which fields are visible to other participants on the public join page.
         </div>
         <VisibilityToggle label="Register Number" value={fc.register_number} onChange={v => setFc('register_number', v)} />
         <VisibilityToggle label="Section"         value={fc.section}         onChange={v => setFc('section', v)} />
@@ -181,8 +179,8 @@ const BLANK_FORM = { election_name: '', semester_tag: '', batch_tag: '', final_c
 
 /* ── Main ──────────────────────────────────────────────────── */
 export default function ElectionControl() {
-  const [elections, setElections] = useState([]);
-  const [current, setCurrent]     = useState(null);
+  const { selectedElection, selectElection } = useElection();
+  const navigate = useNavigate();
   const [checklist, setChecklist] = useState(null);
   const [status, setStatus]       = useState(null);
   const [loading, setLoading]     = useState(false);
@@ -194,47 +192,41 @@ export default function ElectionControl() {
   const [form, setFormState]      = useState(BLANK_FORM);
   const setF = k => e => setFormState(f => ({ ...f, [k]: e.target.value }));
 
-  const loadElections = useCallback(() => {
-    api.get('/elections').then(r => {
-      const list = r.data.data || [];
-      setElections(list);
-      const active = list.find(e => ['NOT_STARTED','ACTIVE','PAUSED'].includes(e.status));
-      setCurrent(active || null);
-    });
-  }, []);
-
   const loadStatus = useCallback((id) => {
+    if (!id) return;
     api.get(`/elections/${id}/status`).then(r => setStatus(r.data.data)).catch(() => {});
     api.get(`/elections/${id}/checklist`).then(r => setChecklist(r.data)).catch(() => {});
   }, []);
 
-  useEffect(() => { loadElections(); }, [loadElections]);
   useEffect(() => {
-    if (current?.election_id) {
-      loadStatus(current.election_id);
-      const iv = setInterval(() => loadStatus(current.election_id), 10000);
-      return () => clearInterval(iv);
+    if (!selectedElection) {
+      navigate('/admin');
+      return;
     }
-  }, [current?.election_id, loadStatus]);
+    loadStatus(selectedElection.election_id);
+    const iv = setInterval(() => loadStatus(selectedElection.election_id), 10000);
+    return () => clearInterval(iv);
+  }, [selectedElection, loadStatus, navigate]);
 
   const action = async (type) => {
-    if (!current) return;
+    if (!selectedElection) return;
     setActionLoading(type); setMsg(null);
     try {
-      const { data } = await api.post(`/elections/${current.election_id}/${type}`);
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/${type}`);
       setMsg({ type: 'success', text: data.message });
-      loadElections(); loadStatus(current.election_id);
+      loadStatus(selectedElection.election_id);
     } catch (err) {
       setMsg({ type: 'error', text: err.response?.data?.message || 'Action failed.' });
     } finally { setActionLoading(''); }
   };
 
   const handleStop = async () => {
+    if (!selectedElection) return;
     setShowStop(false); setActionLoading('stop'); setMsg(null);
     try {
-      const { data } = await api.post(`/elections/${current.election_id}/stop`);
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/stop`);
       setMsg({ type: 'success', text: data.message });
-      loadElections(); loadStatus(current.election_id);
+      loadStatus(selectedElection.election_id);
     } catch (err) {
       setMsg({ type: 'error', text: err.response?.data?.message || 'Stop failed.' });
     } finally { setActionLoading(''); }
@@ -246,25 +238,29 @@ export default function ElectionControl() {
     if (!form.election_name.trim()) return setMsg({ type: 'error', text: 'Election name required.' });
     setLoading(true); setMsg(null);
     try {
-      await api.post('/elections', parseForm(form));
-      setMsg({ type: 'success', text: 'Election created! A join code has been generated automatically. Now add courses and upload students.' });
-      setShowCreate(false); setFormState(BLANK_FORM); loadElections();
+      const { data } = await api.post('/elections', parseForm(form));
+      setMsg({ type: 'success', text: 'Election created!' });
+      setShowCreate(false); setFormState(BLANK_FORM);
+      // Automatically select the new election
+      if (data.election) selectElection(data.election);
     } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Create failed.' }); }
     finally { setLoading(false); }
   };
 
   const handleEdit = async () => {
-    if (!form.election_name.trim()) return setMsg({ type: 'error', text: 'Election name required.' });
+    if (!selectedElection || !form.election_name.trim()) return;
     setLoading(true); setMsg(null);
     try {
-      await api.put(`/elections/${current.election_id}`, parseForm(form));
+      await api.put(`/elections/${selectedElection.election_id}`, parseForm(form));
       setMsg({ type: 'success', text: 'Election updated.' });
-      setShowEdit(false); loadElections();
+      setShowEdit(false);
+      // Refresh context
+      selectElection({ ...selectedElection, ...form });
     } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Update failed.' }); }
     finally { setLoading(false); }
   };
 
-  const past = elections.filter(e => e.status === 'STOPPED');
+  if (!selectedElection && !showCreate) return null;
 
   return (
     <div className="app-shell">
@@ -275,41 +271,30 @@ export default function ElectionControl() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 800, letterSpacing: '-0.6px', color: 'var(--text)', marginBottom: 4 }}>Election Control</h1>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-3)' }}>Manage the full election lifecycle</p>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-3)' }}>Workspace: {selectedElection?.election_name}</p>
           </div>
-          {!current && <button className="btn btn-primary" onClick={() => { setFormState(BLANK_FORM); setShowCreate(true); }}>+ New Election</button>}
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>← Switch Election</button>
         </div>
 
         {msg && <Alert type={msg.type} onClose={() => setMsg(null)}>{msg.text}</Alert>}
 
-        {/* ── No current election ── */}
-        {!current ? (
-          <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '64px 24px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: 16, animation: 'float 3s ease-in-out infinite' }}>🗳️</div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.4rem', color: 'var(--text)', marginBottom: 8 }}>No Active Election</h3>
-            <p style={{ color: 'var(--text-3)', marginBottom: 28, maxWidth: 380, margin: '0 auto 28px', lineHeight: 1.7 }}>
-              Create an election to begin UCOS. A shareable join code is auto-generated — share it with participants so they can apply.
-            </p>
-            <button className="btn btn-primary btn-lg" onClick={() => { setFormState(BLANK_FORM); setShowCreate(true); }}>Create Election →</button>
-          </div>
-        ) : (
+        {selectedElection && (
           <>
-            {/* ── Election header card ── */}
+            {/* Election header card */}
             <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '24px 28px', marginBottom: 20, boxShadow: 'var(--shadow-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
                 <div>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)', letterSpacing: '-0.4px', marginBottom: 8 }}>{current.election_name}</h2>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)', letterSpacing: '-0.4px', marginBottom: 8 }}>{selectedElection.election_name}</h2>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <StatusPill status={current.status} />
-                    {current.semester_tag && <span className="badge badge-blue">{current.semester_tag}</span>}
-                    {current.batch_tag && <span className="badge badge-grey">{current.batch_tag}</span>}
-                    <span className="badge badge-grey">ID #{current.election_id}</span>
-                    <span className="badge badge-green">{current.final_courses_per_student} courses/student</span>
+                    <StatusPill status={selectedElection.status} />
+                    {selectedElection.semester_tag && <span className="badge badge-blue">{selectedElection.semester_tag}</span>}
+                    {selectedElection.batch_tag && <span className="badge badge-grey">{selectedElection.batch_tag}</span>}
+                    <span className="badge badge-grey">ID #{selectedElection.election_id}</span>
                   </div>
                 </div>
-                {current.status === 'NOT_STARTED' && (
+                {selectedElection.status === 'NOT_STARTED' && (
                   <button className="btn btn-ghost btn-sm" onClick={() => {
-                    setFormState({ election_name: current.election_name, semester_tag: current.semester_tag || '', batch_tag: current.batch_tag || '', final_courses_per_student: current.final_courses_per_student, faculty_count: current.faculty_count, min_class_size: current.min_class_size, max_class_size: current.max_class_size, field_config: current.field_config ? (typeof current.field_config === 'string' ? JSON.parse(current.field_config) : current.field_config) : { register_number:'private', section:'public', email:'private' } });
+                    setFormState({ election_name: selectedElection.election_name, semester_tag: selectedElection.semester_tag || '', batch_tag: selectedElection.batch_tag || '', final_courses_per_student: selectedElection.final_courses_per_student, faculty_count: selectedElection.faculty_count, min_class_size: selectedElection.min_class_size, max_class_size: selectedElection.max_class_size, field_config: selectedElection.field_config ? (typeof selectedElection.field_config === 'string' ? JSON.parse(selectedElection.field_config) : selectedElection.field_config) : { register_number:'private', section:'public', email:'private' } });
                     setShowEdit(true);
                   }}>✏ Edit</button>
                 )}
@@ -344,18 +329,13 @@ export default function ElectionControl() {
               )}
             </div>
 
-            {/* ── CAV card ── */}
+            {/* CAV card */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)', marginBottom: 12 }}>
-                Join Code &amp; Link <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-4)', marginLeft: 6 }}>Share with participants so they can apply</span>
-              </div>
-              <CAVCard electionId={current.election_id} />
+              <CAVCard electionId={selectedElection.election_id} />
             </div>
 
-            {/* ── Checklist + Controls ── */}
+            {/* Checklist + Controls */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-
-              {/* Checklist */}
               <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 16 }}>Pre-Start Checklist</div>
                 {checklist ? (
@@ -371,134 +351,34 @@ export default function ElectionControl() {
                         {actionLoading === 'init' ? <Spinner /> : '⚙ Initialise Tokens & Seats'}
                       </button>
                     )}
-
-                    {checklist.allReady && (
-                      <div style={{ marginTop: 14, padding: '10px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: '0.8rem', color: '#065F46', fontWeight: 600 }}>
-                        ✅ All checks passed — ready to start
-                      </div>
-                    )}
                   </>
                 ) : <div style={{ textAlign: 'center', padding: 24 }}><Spinner dark /></div>}
               </div>
 
-              {/* Controls */}
               <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 16 }}>Election Controls</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                  {current.status === 'NOT_STARTED' && (
-                    <button className="btn btn-success btn-full"
-                      onClick={() => action('start')}
-                      disabled={!checklist?.allReady || !!actionLoading}
-                      style={{ padding: '14px', fontSize: '0.95rem', letterSpacing: '0.5px' }}>
-                      {actionLoading === 'start' ? <Spinner /> : '▶  START ELECTION'}
+                  {selectedElection.status === 'NOT_STARTED' && (
+                    <button className="btn btn-success btn-full" onClick={() => action('start')} disabled={!checklist?.allReady || !!actionLoading}>
+                      {actionLoading === 'start' ? <Spinner /> : '▶ START ELECTION'}
                     </button>
                   )}
-
-                  {current.status === 'ACTIVE' && (
+                  {selectedElection.status === 'ACTIVE' && (
                     <>
-                      <button className="btn btn-warning btn-full" onClick={() => action('pause')} disabled={!!actionLoading}>
-                        {actionLoading === 'pause' ? <Spinner /> : '⏸  PAUSE ELECTION'}
-                      </button>
-                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)} disabled={!!actionLoading}>
-                        ⏹  STOP ELECTION
-                      </button>
+                      <button className="btn btn-warning btn-full" onClick={() => action('pause')} disabled={!!actionLoading}>⏸ PAUSE</button>
+                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)} disabled={!!actionLoading}>⏹ STOP</button>
                     </>
                   )}
-
-                  {current.status === 'PAUSED' && (
-                    <>
-                      <button className="btn btn-success btn-full" onClick={() => action('resume')} disabled={!!actionLoading}>
-                        {actionLoading === 'resume' ? <Spinner /> : '▶  RESUME ELECTION'}
-                      </button>
-                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)} disabled={!!actionLoading}>
-                        ⏹  STOP ELECTION
-                      </button>
-                    </>
+                  {selectedElection.status === 'PAUSED' && (
+                    <button className="btn btn-success btn-full" onClick={() => action('resume')} disabled={!!actionLoading}>▶ RESUME</button>
                   )}
-
-                  {current.status === 'STOPPED' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {/* Mandatory step banner */}
-                      <div style={{ padding: '16px 18px', background: 'linear-gradient(135deg, #0A0F1E, #1a1f35)', border: '1px solid rgba(79,70,229,0.3)', borderRadius: 14 }}>
-                        <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 6 }}>Mandatory Next Step</div>
-                        <div style={{ fontWeight: 700, color: 'white', fontSize: '0.92rem', marginBottom: 8 }}>
-                          🔒 Choice results have been locked automatically
-                        </div>
-                        <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 14px' }}>
-                          The election is stopped. Student choices are now an immutable snapshot. Proceed to Results to create an allocation session and publish the final assignment.
-                        </p>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button className="btn btn-primary btn-sm" onClick={() => window.location.href = '/admin/results'} style={{ flex: 1, justifyContent: 'center', letterSpacing: '0.3px' }}>
-                            📋 Open Results &amp; Allocation →
-                          </button>
-                        </div>
-                      </div>
-                      <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, fontSize: '0.78rem', color: '#1E40AF', lineHeight: 1.6 }}>
-                        <strong>Note:</strong> The join link has expired. You can also run allocation rounds from the <a href="/admin/allocation" style={{ color: '#1E40AF', fontWeight: 700 }}>Allocation Panel</a> before finalising sessions in Results.
-                      </div>
-                    </div>
+                  {selectedElection.status === 'STOPPED' && (
+                    <Button variant="primary" onClick={() => navigate('/admin/results')}>View Final Results →</Button>
                   )}
-
-                  {!checklist?.allReady && current.status === 'NOT_STARTED' && (
-                    <p style={{ fontSize: '0.76rem', color: 'var(--text-4)', marginTop: 4 }}>
-                      ⚠ Complete all checklist items before starting.
-                    </p>
-                  )}
-                </div>
-
-                {/* Status timeline */}
-                <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>Lifecycle</div>
-                  {[
-                    { label: 'Created', done: true },
-                    { label: 'Initialised', done: checklist?.checklist?.tokens?.ok && checklist?.checklist?.seats?.ok },
-                    { label: 'Active', done: ['ACTIVE','PAUSED','STOPPED'].includes(current.status) },
-                    { label: 'Stopped', done: current.status === 'STOPPED' },
-                    { label: 'Results & Allocation', done: false, mandatory: current.status === 'STOPPED' },
-                  ].map((step, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: step.done ? '#059669' : step.mandatory ? '#D97706' : 'var(--border)', border: `2px solid ${step.done ? '#059669' : step.mandatory ? '#D97706' : 'var(--border-2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {step.done && <span style={{ fontSize: '0.55rem', color: 'white', fontWeight: 800 }}>✓</span>}
-                        {step.mandatory && !step.done && <span style={{ fontSize: '0.55rem', color: '#D97706', fontWeight: 800 }}>!</span>}
-                      </div>
-                      <span style={{ fontSize: '0.78rem', color: step.done ? 'var(--text)' : step.mandatory ? '#D97706' : 'var(--text-4)', fontWeight: step.done || step.mandatory ? 600 : 400 }}>
-                        {step.label}{step.mandatory && !step.done ? ' ← next' : ''}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
           </>
-        )}
-
-        {/* ── Past elections ── */}
-        {past.length > 0 && (
-          <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ padding: '18px 26px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Past Elections</span>
-              <span className="badge badge-grey">{past.length}</span>
-            </div>
-            <div className="table-wrap" style={{ borderRadius: 0, border: 'none' }}>
-              <table>
-                <thead><tr><th>Election</th><th>Semester</th><th>Batch</th><th>Status</th><th></th></tr></thead>
-                <tbody>
-                  {past.map(e => (
-                    <tr key={e.election_id}>
-                      <td><strong>{e.election_name}</strong></td>
-                      <td>{e.semester_tag || <span className="text-muted">—</span>}</td>
-                      <td>{e.batch_tag || <span className="text-muted">—</span>}</td>
-                      <td><StatusPill status={e.status} /></td>
-                      <td>
-                        <a href={`/admin/allocation?id=${e.election_id}`} className="btn btn-ghost btn-sm" style={{ fontSize: '0.76rem' }}>Results →</a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
 
         {/* Create modal */}
@@ -506,9 +386,6 @@ export default function ElectionControl() {
           <Modal title="Create New Election" onClose={() => setShowCreate(false)}
             footer={<><button className="btn btn-ghost btn-sm" onClick={() => setShowCreate(false)}>Cancel</button><button className="btn btn-primary" onClick={handleCreate} disabled={loading}>{loading ? <Spinner /> : 'Create Election'}</button></>}>
             <ElectionFormFields form={form} setF={setF} setForm={setFormState} />
-            <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--muted-bg)', borderRadius: 10, fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.6 }}>
-              💡 A unique join code and link will be automatically generated so participants can apply.
-            </div>
           </Modal>
         )}
 
@@ -523,20 +400,11 @@ export default function ElectionControl() {
         {/* Stop confirm modal */}
         {showStop && (
           <Modal title="⏹ Stop Election" onClose={() => setShowStop(false)}
-            footer={<><button className="btn btn-ghost btn-sm" onClick={() => setShowStop(false)}>Cancel</button><button className="btn btn-danger" onClick={handleStop}>{actionLoading === 'stop' ? <Spinner /> : 'Yes, Stop Election'}</button></>}>
-            <div className="alert alert-warning" style={{ marginBottom: 16 }}><strong>This cannot be undone.</strong></div>
-            <p style={{ fontSize: '0.88rem', lineHeight: 1.8, color: 'var(--text-2)' }}>Stopping will:</p>
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {['Close all bookings immediately', 'Auto-assign remaining courses to non-participants', 'Expire the join code and link', 'Unlock the Allocation Panel for result finalisation'].map(t => (
-                <div key={t} style={{ display: 'flex', gap: 8, fontSize: '0.84rem', color: 'var(--text-2)' }}>
-                  <span style={{ color: '#DC2626', flexShrink: 0 }}>✕</span> {t}
-                </div>
-              ))}
-            </div>
+            footer={<><button className="btn btn-ghost btn-sm" onClick={() => setShowStop(false)}>Cancel</button><button className="btn btn-danger" onClick={handleStop}>Yes, Stop Election</button></>}>
+            <div className="alert alert-warning"><strong>This cannot be undone.</strong> All bookings will be closed and results locked.</div>
           </Modal>
         )}
       </main>
-      <style>{`@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }`}</style>
     </div>
   );
 }
