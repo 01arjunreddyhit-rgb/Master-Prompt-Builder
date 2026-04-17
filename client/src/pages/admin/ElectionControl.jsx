@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElection } from '../../context/ElectionContext';
 import { AdminSidebar } from '../../components/ui/Sidebar';
-import { StatusPill, Alert, Spinner, Modal, ProgressBar } from '../../components/ui/index';
+import { StatusPill, Alert, Spinner, Modal, ProgressBar, Button } from '../../components/ui/index';
 import api from '../../services/api';
 
 /* ── Copy button ─────────────────────────────────────────────── */

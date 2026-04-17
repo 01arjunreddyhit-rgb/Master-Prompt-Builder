@@ -105,8 +105,8 @@ function KpiCard({ label, value, sub, color, spark, trend, onClick }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '0.73rem', color: 'var(--text-4)' }}>{sub}</span>
         {trend !== undefined && (
-          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: trend >= 0 ? '#059669' : '#DC2626' }}>
-            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: (typeof trend === 'string' ? trend.startsWith('+') : trend >= 0) ? '#059669' : '#DC2626' }}>
+            {(typeof trend === 'string' ? trend.startsWith('+') : trend >= 0) ? '↑' : '↓'} {typeof trend === 'string' ? trend.replace(/[+-]/, '') : Math.abs(trend)}
           </span>
         )}
       </div>

@@ -6,12 +6,12 @@ export const useElection = () => useContext(ElectionContext);
 
 export const ElectionProvider = ({ children }) => {
   const [selectedElection, setSelectedElection] = useState(() => {
-    const saved = localStorage.getItem('selectedElection');
+    const saved = localStorage.getItem('selected_election');
     return saved ? JSON.parse(saved) : null;
   });
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const selectElection = (election) => {
+  const selectElection = (election, trend) => {
     setIsTransitioning(true);
     setSelectedElection(election);
     if (election) {
