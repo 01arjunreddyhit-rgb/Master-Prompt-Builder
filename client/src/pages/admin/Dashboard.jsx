@@ -197,7 +197,45 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* GLOBAL PULSE (NEW) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+          <KpiCard 
+            label="Total Enrollment" 
+            value={studentCount} 
+            sub="Across all workspaces" 
+            color="#4F46E5" 
+            spark={[30, 45, 32, 50, 42, 60, 55]}
+          />
+          <KpiCard 
+            label="Active Hubs" 
+            value={elections.filter(e => e.status === 'ACTIVE').length} 
+            sub="Live elections" 
+            color="#059669" 
+            trend="+12%"
+          />
+          <KpiCard 
+            label="Pending Action" 
+            value={pendingCount} 
+            sub="Student requests" 
+            color="#D97706" 
+          />
+          <KpiCard 
+            label="System Health" 
+            value="99.9%" 
+            sub="All services active" 
+            color="#7C3AED" 
+          />
+        </div>
+
         {/* ELECTION GRID */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800 }}>Election Workspaces</h2>
+          <div style={{ display: 'flex', gap: 8 }}>
+             <button className="btn btn-surface btn-sm" style={{ padding: '4px 12px' }}>All</button>
+             <button className="btn btn-surface btn-sm" style={{ padding: '4px 12px', opacity: 0.5 }}>Active</button>
+             <button className="btn btn-surface btn-sm" style={{ padding: '4px 12px', opacity: 0.5 }}>Past</button>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, marginBottom: 40 }}>
           {loading ? (
             [1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 180, borderRadius: 18 }} />)

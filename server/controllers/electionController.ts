@@ -107,6 +107,14 @@ const getElections = async (req, res) => {
        WHERE e.admin_id=? ORDER BY e.created_at DESC`,
       [req.user.id]
     );
+
+    // Silent Migration: If any election lacks a CAV, generate it now
+    for (const e of rows) {
+      if (!e.election_code) {
+        silentGenerateCAV(e.election_id).catch(() => {});
+      }
+    }
+
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });

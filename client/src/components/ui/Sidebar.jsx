@@ -17,9 +17,9 @@ function NavItem({ icon, label, path, badge, navigate, location }) {
 
 export function AdminSidebar() {
   const { user, logout } = useAuth();
-  const { selectedElection, selectElection } = useElection();
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const { selectedElection, clearWorkspace } = useElection();
+  const navigate = useNavigate();
+  const location = useLocation();
   const nav = (p) => navigate(p);
 
   return (
@@ -38,14 +38,19 @@ export function AdminSidebar() {
 
         {selectedElection ? (
           <>
-            <div className="nav-section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Current Election</span>
-              <button onClick={() => { selectElection(null); nav('/admin'); }} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>SWITCH</button>
+            <div className="nav-section-label">Active Workspace</div>
+            <div style={{ margin: '8px 12px 16px', padding: '12px', background: 'rgba(79,70,229,0.12)', borderRadius: 12, border: '1px solid rgba(79,70,229,0.2)' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>{selectedElection.election_name}</div>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{selectedElection.election_code || 'No Code'}</div>
+              <button 
+                onClick={() => { clearWorkspace(); nav('/admin'); }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '0.65rem', fontWeight: 700, padding: '5px', borderRadius: 6, cursor: 'pointer' }}
+              >
+                ⇄ Switch Election
+              </button>
             </div>
-            <div style={{ marginBottom: 12, padding: '0 12px' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedElection.election_name}</div>
-              <div style={{ fontSize: '0.6rem', color: 'var(--text-4)', fontFamily: 'var(--mono)' }}>{selectedElection.election_code}</div>
-            </div>
+            
+            <div className="nav-section-label">Management</div>
             <NavItem icon="🗳" label="Control" path="/admin/election"   navigate={nav} location={location} />
             <NavItem icon="🔗" label="CAV Panel"        path="/admin/cav"        navigate={nav} location={location} />
             <NavItem icon="📚" label="Courses" path="/admin/courses"    navigate={nav} location={location} />
@@ -54,7 +59,7 @@ export function AdminSidebar() {
           </>
         ) : (
           <div style={{ padding: '20px 12px', textAlign: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: 12, margin: '8px 12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', margin: 0 }}>Select an election from the dashboard to manage results.</p>
+            <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', margin: 0 }}>Select an election from the dashboard to reveal tools.</p>
           </div>
         )}
         
