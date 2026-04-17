@@ -280,12 +280,38 @@ const deleteElection = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid election code. Deletion aborted.' });
     }
 
-    // Cascading delete
+    // ── DEEP CASCADING DELETE ─────────────────────────────
+    // 1. Assignment details & Final assignments
+    await conn.execute('DELETE FROM assignment_details WHERE assignment_id IN (SELECT assignment_id FROM final_assignments WHERE election_id=?)', [election_id]);
+    await conn.execute('DELETE FROM final_assignments WHERE election_id=?', [election_id]);
+    
+    // 2. Allocation Sessions & their dependencies
+    await conn.execute('DELETE FROM allocation_session_tokens WHERE session_id IN (SELECT session_id FROM allocation_sessions WHERE election_id=?)', [election_id]);
+    await conn.execute('DELETE FROM allocation_session_courses WHERE session_id IN (SELECT session_id FROM allocation_sessions WHERE election_id=?)', [election_id]);
+    await conn.execute('DELETE FROM allocation_overrides WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM allocation_sessions WHERE election_id=?', [election_id]);
+    
+    // 3. Analytics, Steps & Versions
+    await conn.execute('DELETE FROM allocation_rounds WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM allocation_steps WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM allocation_versions WHERE election_id=?', [election_id]);
+    
+    // 4. Communication & Results
+    await conn.execute('DELETE FROM election_messages WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM election_participants WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM election_choice_results WHERE election_id=?', [election_id]);
+    
+    // 5. Core Election Assets
+    await conn.execute('DELETE FROM room_tickets WHERE election_id=?', [election_id]);
     await conn.execute('DELETE FROM seats WHERE election_id=?', [election_id]);
     await conn.execute('DELETE FROM student_tokens WHERE election_id=?', [election_id]);
     await conn.execute('DELETE FROM courses WHERE election_id=?', [election_id]);
     await conn.execute('DELETE FROM election_cav WHERE election_id=?', [election_id]);
-    await conn.execute('DELETE FROM election_results_lock WHERE election_id=?', [election_id]);
+    
+    // 6. Detach Students (but don't delete them)
+    await conn.execute('UPDATE students SET election_id=NULL WHERE election_id=?', [election_id]);
+    
+    // 7. Final: Delete the Election itself
     await conn.execute('DELETE FROM elections WHERE election_id=? AND admin_id=?', [election_id, admin_id]);
 
     await conn.commit();
