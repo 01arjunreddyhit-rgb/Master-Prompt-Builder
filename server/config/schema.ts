@@ -264,12 +264,10 @@ const schemaStatements = [
     faculty_id INTEGER NOT NULL,
     is_primary BOOLEAN DEFAULT FALSE
   )`,
-];
-
-// Dormant future schema note:
-// We intentionally are not creating `election_invites` in the active schema bootstrap.
-// That table belongs to a later invite-first onboarding model where students activate
-// directly from an election link. The current live flow remains self-registration.
+  // Dormant future schema note:
+  // We intentionally are not creating `election_invites` in the active schema bootstrap.
+  // That table belongs to a later invite-first onboarding model where students activate
+  // directly from an election link. The current live flow remains self-registration.
 
   `CREATE TABLE IF NOT EXISTS class_rooms (
     room_id SERIAL PRIMARY KEY,
