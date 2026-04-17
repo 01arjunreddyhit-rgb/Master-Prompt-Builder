@@ -253,6 +253,8 @@ const stopElection = async (req, res) => {
   } finally {
     conn.release();
   }
+};
+
 // ── DELETE ELECTION (WITH CODE SAFETY) ────────────────────────
 const deleteElection = async (req, res) => {
   const conn = await pool.getConnection();

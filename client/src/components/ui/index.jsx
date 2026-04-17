@@ -145,6 +145,32 @@ export const Input = ({ label, icon, className = '', containerStyle = {}, ...pro
   </div>
 );
 
+// ── SELECT ────────────────────────────────────────────────────
+export const Select = ({ label, options = [], className = '', ...props }) => (
+  <div className="form-group" style={{ marginBottom: 16 }}>
+    {label && <label className="form-label" style={{ display: 'block', marginBottom: 6, fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-3)' }}>{label}</label>}
+    <select 
+      className={`form-select ${className}`} 
+      style={{ 
+        width: '100%',
+        height: 44,
+        borderRadius: 12,
+        border: '1.5px solid var(--border)',
+        background: 'var(--surface)',
+        color: 'var(--text)',
+        fontSize: '0.9rem',
+        outline: 'none',
+        padding: '0 12px'
+      }} 
+      {...props}
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  </div>
+);
+
 // ── CARD ──────────────────────────────────────────────────────
 export const Card = ({ children, className = '', ...props }) => (
   <div className={`card ${className}`} style={{ background: 'var(--surface)', borderRadius: 16, border: '1.5px solid var(--border)', padding: 20 }} {...props}>
