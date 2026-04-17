@@ -30,7 +30,7 @@ export async function setupVite(server: Server, app: Express) {
     appType: "custom",
   });
   app.use(vite.middlewares);
-  app.use("/{*path}", async (req, res, next) => {
+  app.use("*path", async (req, res, next) => {
     const url = req.originalUrl;
     try {
       const clientTemplate = path.resolve(
@@ -55,7 +55,7 @@ export async function setupVite(server: Server, app: Express) {
 
 export function serveStatic(app: any) {
   app.use(express.static(path.resolve(process.cwd(), "dist/public")));
-  app.use("/{*path}", (_req: any, res: any) => {
+  app.use("*path", (_req: any, res: any) => {
     res.sendFile(path.resolve(process.cwd(), "dist/public/index.html"));
   });
 }
