@@ -91,6 +91,7 @@ function PendingCard({ p, onAction, busy, selected, onSelect }) {
         )}
       </div>
     </div>
+    </div>
   );
 }
 
