@@ -19,21 +19,14 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, "dist/public"),
     emptyOutDir: true,
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 3000,
     reportCompressedSize: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor': ['react', 'react-dom', 'react-router-dom'],
-          'lucide': ['lucide-react'],
-        },
-      },
-    },
     sourcemap: false,
     minify: 'esbuild',
   },
   optimizeDeps: {
-    include: ['lucide-react'],
+    // Prevent pre-bundling massive libraries
+    exclude: ['lucide-react'],
   },
   server: {
     fs: {

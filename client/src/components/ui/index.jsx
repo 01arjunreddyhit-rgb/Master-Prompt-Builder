@@ -112,6 +112,25 @@ export const ConfirmDialog = ({ title, message, onConfirm, onCancel, danger }) =
   </Modal>
 );
 
+// ── BUTTON ────────────────────────────────────────────────────
+export const Button = ({ children, variant = 'primary', className = '', ...props }) => (
+  <button className={`btn btn-${variant} ${className}`} {...props}>
+    {children}
+  </button>
+);
+
+// ── INPUT ─────────────────────────────────────────────────────
+export const Input = ({ className = '', ...props }) => (
+  <input className={`form-input ${className}`} {...props} />
+);
+
+// ── CARD ──────────────────────────────────────────────────────
+export const Card = ({ children, className = '', ...props }) => (
+  <div className={`card ${className}`} style={{ background: 'var(--surface)', borderRadius: 16, border: '1.5px solid var(--border)', padding: 20 }} {...props}>
+    {children}
+  </div>
+);
+
 // ── LOADING SCREEN ────────────────────────────────────────────
 export const LoadingScreen = ({ text }) => (
   <div style={{
@@ -122,3 +141,4 @@ export const LoadingScreen = ({ text }) => (
     <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{text || 'Loading...'}</p>
   </div>
 );
+
