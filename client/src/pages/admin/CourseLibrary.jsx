@@ -1,8 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, Search, Edit2, Trash2, Library, BookOpen, 
-  Hash, Users, Layers, Star, Filter, Save, X 
-} from 'lucide-react';
 import { Button, Input, Card, Modal, Badge, LoadingScreen } from '../../components/ui/index';
 import api from '../../services/api';
 
@@ -78,7 +74,7 @@ const CourseLibrary = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Library className="w-8 h-8 text-indigo-600" />
+            <span style={{ fontSize: '2rem' }}>🏛</span>
             Master Course Library
           </h1>
           <p className="text-gray-500">Permanent repository of all academic courses</p>
@@ -92,13 +88,13 @@ const CourseLibrary = () => {
           });
           setIsModalOpen(true);
         }} className="flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add to Library
+          <span>+</span> Add to Library
         </Button>
       </div>
 
       <Card className="p-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
           <Input 
             placeholder="Search by course name or subject code..." 
             className="pl-10"
@@ -121,10 +117,10 @@ const CourseLibrary = () => {
                   setFormData({ ...course });
                   setIsModalOpen(true);
                 }} className="text-indigo-600 hover:text-indigo-800">
-                  <Edit2 className="w-4 h-4" />
+                  <span>✎</span>
                 </button>
                 <button onClick={() => handleDelete(course.library_course_id)} className="text-red-600 hover:text-red-800">
-                  <Trash2 className="w-4 h-4" />
+                  <span>✕</span>
                 </button>
               </div>
             </div>
@@ -139,11 +135,11 @@ const CourseLibrary = () => {
 
             <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Layers className="w-4 h-4 text-indigo-400" />
+                <span>⭐</span>
                 <span>{course.credit_weight} Credits</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Users className="w-4 h-4 text-indigo-400" />
+                <span>👥</span>
                 <span>{course.min_enrollment}-{course.max_enrollment} Seats</span>
               </div>
             </div>
@@ -214,8 +210,8 @@ const CourseLibrary = () => {
                 Cancel
               </Button>
               <Button type="submit">
-                <Save className="w-4 h-4 mr-2" />
-                {editingCourse ? 'Update Library' : 'Save to Library'}
+                <span>💾</span>
+                {editingCourse ? ' Update' : ' Save'}
               </Button>
             </div>
           </form>

@@ -24,10 +24,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'lucide-icons': ['lucide-react'],
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'lucide': ['lucide-react'],
         },
       },
     },
+    sourcemap: false,
+    minify: 'esbuild',
+  },
+  optimizeDeps: {
+    include: ['lucide-react'],
   },
   server: {
     fs: {
