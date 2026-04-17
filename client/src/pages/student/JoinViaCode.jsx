@@ -155,13 +155,6 @@ export default function JoinViaCode() {
             </div>
           </div>
         )}
-                    <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-4)' }}>No matching elections found.</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {step === 'preview' && election && (
           <div style={{ maxWidth: 500 }}>
