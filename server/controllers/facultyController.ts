@@ -56,10 +56,10 @@ const deleteFaculty = async (req, res) => {
     const [rows] = await pool.execute('SELECT faculty_id FROM faculty WHERE faculty_id=? AND admin_id=?', [faculty_id, admin_id]);
     if (!rows.length) return res.status(404).json({ success: false, message: 'Faculty not found.' });
 
-    // Check if assigned to any group
-    const [assigned] = await pool.execute('SELECT id FROM study_group_faculty WHERE faculty_id=?', [faculty_id]);
+    // Check if assigned to any room ticket
+    const [assigned] = await pool.execute('SELECT ticket_id FROM room_tickets WHERE faculty_id=?', [faculty_id]);
     if (assigned.length) {
-      return res.status(400).json({ success: false, message: 'Faculty is assigned to a study group and cannot be deleted.' });
+      return res.status(400).json({ success: false, message: 'Faculty is assigned to a class room and cannot be deleted.' });
     }
 
     await pool.execute('DELETE FROM faculty WHERE faculty_id=?', [faculty_id]);

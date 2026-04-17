@@ -30,7 +30,7 @@ function SeatFill({ booked, total, min, max }) {
 }
 
 /* ── Course card view ───────────────────────────────────────── */
-function CourseCard({ c, i, onEdit, onDelete, onToggle, onToggleGroups }) {
+function CourseCard({ c, i, onEdit, onDelete, onToggle, onToggleRooms }) {
   const [hover, setHover] = useState(false);
   const booked = c.token_count || 0;
   const total  = c.total_seats || c.max_enrollment || 0;
@@ -66,7 +66,7 @@ function CourseCard({ c, i, onEdit, onDelete, onToggle, onToggleGroups }) {
           {c.is_burst ? <Badge variant="red">Burst</Badge> : c.is_active ? <Badge variant="green">Active</Badge> : <Badge variant="grey">Inactive</Badge>}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-surface btn-sm" style={{ fontSize: '0.75rem' }} onClick={() => onToggleGroups(c)}>Groups</button>
+          <button className="btn btn-surface btn-sm" style={{ fontSize: '0.75rem' }} onClick={() => onToggleRooms(c)}>Rooms</button>
           <button className="btn btn-ghost btn-sm" style={{ fontSize: '0.75rem' }} onClick={() => onEdit(c)}>Edit</button>
           {!c.is_burst && (
             <button className={`btn btn-sm ${c.is_active ? 'btn-warning' : 'btn-success'}`} style={{ fontSize: '0.75rem' }} onClick={() => onToggle(c)}>
@@ -113,90 +113,96 @@ function CourseHeatRow({ courses = [] }) {
   );
 }
 
-/* ── Study Groups Modal ────────────────────────────────────── */
-function StudyGroupsModal({ course, election, faculty, onClose }) {
-  const [groups, setGroups] = useState([]);
+/* ── Room Tickets Modal ────────────────────────────────────── */
+function RoomTicketsModal({ course, election, faculty, onClose }) {
+  const [tickets, setTickets] = useState([]);
+  const [classRooms, setClassRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ group_name: '', capacity: 45, faculty_ids: [] });
+  const [form, setForm] = useState({ room_id: '', assigned_capacity: '', faculty_id: '' });
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    api.get(`/study-groups?course_id=${course.course_id}`)
-      .then(r => setGroups(r.data.data || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const [tr, cr] = await Promise.all([
+        api.get(`/room-tickets?course_id=${course.course_id}`),
+        api.get('/class-rooms')
+      ]);
+      setTickets(tr.data.data || []);
+      setClassRooms(cr.data.data || []);
+    } catch (err) {}
+    setLoading(false);
   };
   useEffect(() => { load(); }, [course.course_id]);
 
   const handleAdd = async () => {
-    if (!form.group_name) return alert('Name required.');
+    if (!form.room_id) return alert('Please select a Class Room.');
     try {
-      await api.post('/study-groups', { ...form, course_id: course.course_id, election_id: election.election_id });
+      await api.post('/room-tickets', { ...form, course_id: course.course_id, election_id: election.election_id });
       setShowAdd(false);
-      setForm({ group_name: '', capacity: 45, faculty_ids: [] });
+      setForm({ room_id: '', assigned_capacity: '', faculty_id: '' });
       load();
     } catch (err) { alert(err.response?.data?.message || 'Add failed.'); }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this group?')) return;
+    if (!window.confirm('Remove this room assignment?')) return;
     try {
-      await api.delete(`/study-groups/${id}`);
+      await api.delete(`/room-tickets/${id}`);
       load();
     } catch (err) { alert(err.response?.data?.message || 'Delete failed.'); }
   };
 
-  const toggleFaculty = (fid) => {
-    setForm(f => {
-      const next = f.faculty_ids.includes(fid) 
-        ? f.faculty_ids.filter(id => id !== fid)
-        : [...f.faculty_ids, fid];
-      return { ...f, faculty_ids: next };
-    });
-  };
-
   return (
-    <Modal title={`Study Groups: ${course.course_name}`} onClose={onClose} maxWidth={500}>
+    <Modal title={`Room Assignments: ${course.course_name}`} onClose={onClose} maxWidth={540}>
       {loading ? <div style={{textAlign:'center', padding:40}}><Spinner dark /></div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {groups.map(g => (
-            <div key={g.group_id} style={{ padding: 12, background: 'var(--muted-bg)', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {tickets.length === 0 && !showAdd && (
+             <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-4)', fontSize: '0.85rem' }}>No rooms assigned. This course has no physical location limits yet.</div>
+          )}
+          {tickets.map(t => (
+            <div key={t.ticket_id} style={{ padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'var(--shadow-sm)' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{g.group_name}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-4)' }}>
-                   Capacity: {g.capacity} · Faculty: {g.faculty_names || 'None'}
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)' }}>{t.room_name} <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', fontWeight: 500 }}>(Max: {t.base_capacity})</span></div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-4)', marginTop: 4 }}>
+                   Assigned Cap: <strong style={{ color: 'var(--text-2)' }}>{t.assigned_capacity || t.base_capacity}</strong> · Faculty: <strong style={{ color: 'var(--text-2)' }}>{t.faculty_name || 'Unassigned'}</strong>
                 </div>
               </div>
-              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(g.group_id)}>✕</button>
+              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.ticket_id)}>✕</button>
             </div>
           ))}
           
           {!showAdd ? (
-            <button className="btn btn-surface btn-sm" style={{ width: '100%' }} onClick={() => setShowAdd(true)}>+ Add Group</button>
+            <button className="btn btn-primary btn-sm" style={{ width: '100%', marginTop: 8 }} onClick={() => setShowAdd(true)}>+ Assign Room</button>
           ) : (
-            <div style={{ padding: 14, border: '1.5px dashed var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div className="form-group">
-                <label className="form-label">Group Name</label>
-                <input className="form-input" placeholder="e.g. Group A" value={form.group_name} onChange={e => setForm({...form, group_name: e.target.value})} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Capacity</label>
-                <input className="form-input" type="number" value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} />
+            <div style={{ padding: 16, border: '1.5px dashed var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Select Class Room</label>
+                <select className="form-select" value={form.room_id} onChange={e => {
+                  const rm = classRooms.find(r => r.room_id == e.target.value);
+                  setForm({...form, room_id: e.target.value, assigned_capacity: rm ? rm.base_capacity : ''});
+                }}>
+                  <option value="">-- Choose Room --</option>
+                  {classRooms.map(r => <option key={r.room_id} value={r.room_id}>{r.room_name} (Cap: {r.base_capacity})</option>)}
+                </select>
               </div>
               
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: 4 }}>Assign Faculty</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {faculty.map(f => (
-                  <button key={f.faculty_id} onClick={() => toggleFaculty(f.faculty_id)}
-                    style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.68rem', border: '1px solid var(--border)', background: form.faculty_ids.includes(f.faculty_id) ? 'var(--accent)' : 'var(--surface)', color: form.faculty_ids.includes(f.faculty_id) ? 'white' : 'var(--text-3)', cursor: 'pointer' }}>
-                    {f.faculty_name}
-                  </button>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Assigned Capacity</label>
+                  <input className="form-input" type="number" placeholder="Optional" value={form.assigned_capacity} onChange={e => setForm({...form, assigned_capacity: e.target.value})} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Assign Faculty</label>
+                  <select className="form-select" value={form.faculty_id} onChange={e => setForm({...form, faculty_id: e.target.value})}>
+                    <option value="">-- Unassigned --</option>
+                    {faculty.map(f => <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={handleAdd}>Add</button>
+                <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={handleAdd}>Assign Room</button>
                 <button className="btn btn-surface btn-sm" onClick={() => setShowAdd(false)}>Cancel</button>
               </div>
             </div>
@@ -219,7 +225,7 @@ export default function AdminCourses() {
   const [saving, setSaving]             = useState(false);
   const [view, setView]                 = useState('cards'); // 'cards' | 'table'
   const [selectedLibraryId, setSelectedLibraryId] = useState('');
-  const [selectedForGroups, setSelectedForGroups] = useState(null);
+  const [selectedForRooms, setSelectedForRooms] = useState(null);
   const [form, setForm]                 = useState({ course_name: '', subject_code: '', description: '', min_enrollment: 45, max_enrollment: 75, classes_per_course: 1, credit_weight: 3.0 });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -380,7 +386,7 @@ export default function AdminCourses() {
             action={<button className="btn btn-primary" onClick={openAdd}>Add First Course</button>} />
         ) : view === 'cards' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px,1fr))', gap: 18 }}>
-            {courses.map((c, i) => <CourseCard key={c.course_id} c={c} i={i} onEdit={openEdit} onDelete={handleDelete} onToggle={toggleActive} onToggleGroups={setSelectedForGroups} />)}
+            {courses.map((c, i) => <CourseCard key={c.course_id} c={c} i={i} onEdit={openEdit} onDelete={handleDelete} onToggle={toggleActive} onToggleRooms={setSelectedForRooms} />)}
           </div>
         ) : (
           <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
@@ -401,7 +407,7 @@ export default function AdminCourses() {
                       <td><span style={{ fontFamily: 'var(--mono)', fontSize: '0.8rem', color: 'var(--text-3)' }}>{c.min_enrollment}/{c.max_enrollment}</span></td>
                       <td><SeatFill booked={c.token_count||0} total={c.max_enrollment} min={c.min_enrollment} max={c.max_enrollment} /></td>
                       <td>{c.is_burst ? <Badge variant="red">Burst</Badge> : c.is_active ? <Badge variant="green">Active</Badge> : <Badge variant="grey">Inactive</Badge>}</td>
-                      <td><div style={{ display: 'flex', gap: 5 }}><button className="btn btn-surface btn-sm" onClick={() => setSelectedForGroups(c)}>Groups</button><button className="btn btn-ghost btn-sm" onClick={() => openEdit(c)}>Edit</button>{!c.is_burst && <button className={`btn btn-sm ${c.is_active?'btn-warning':'btn-success'}`} onClick={() => toggleActive(c)}>{c.is_active?'Pause':'On'}</button>}<button className="btn btn-danger btn-sm" onClick={() => handleDelete(c)}>✕</button></div></td>
+                      <td><div style={{ display: 'flex', gap: 5 }}><button className="btn btn-surface btn-sm" onClick={() => setSelectedForRooms(c)}>Rooms</button><button className="btn btn-ghost btn-sm" onClick={() => openEdit(c)}>Edit</button>{!c.is_burst && <button className={`btn btn-sm ${c.is_active?'btn-warning':'btn-success'}`} onClick={() => toggleActive(c)}>{c.is_active?'Pause':'On'}</button>}<button className="btn btn-danger btn-sm" onClick={() => handleDelete(c)}>✕</button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -463,8 +469,8 @@ export default function AdminCourses() {
             <div className="form-group"><label className="form-label">Description (optional)</label><textarea className="form-textarea" rows={2} placeholder="Brief description..." value={form.description} onChange={set('description')} /></div>
           </Modal>
         )}
-        {selectedForGroups && (
-          <StudyGroupsModal course={selectedForGroups} election={activeElection} faculty={faculty} onClose={() => setSelectedForGroups(null)} />
+        {selectedForRooms && (
+          <RoomTicketsModal course={selectedForRooms} election={activeElection} faculty={faculty} onClose={() => setSelectedForRooms(null)} />
         )}
       </main>
     </div>

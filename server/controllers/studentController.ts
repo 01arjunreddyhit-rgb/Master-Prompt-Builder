@@ -115,14 +115,18 @@ const bookSeat = async (req, res) => {
 
     await conn.beginTransaction();
 
-    // 1. Check election is ACTIVE
+    // 1. Check election is ACTIVE and NOT PAUSED
     const [elections] = await conn.execute(
-      "SELECT status, final_courses_per_student FROM elections WHERE election_id=? FOR SHARE",
+      "SELECT status, is_paused, final_courses_per_student FROM elections WHERE election_id=? FOR SHARE",
       [election_id]
     );
     if (!elections.length || elections[0].status !== 'ACTIVE') {
       await conn.rollback();
       return res.status(400).json({ success: false, message: 'Election is not active. Booking not allowed.' });
+    }
+    if (elections[0].is_paused) {
+      await conn.rollback();
+      return res.status(403).json({ success: false, message: 'Election is currently PAUSED by administrator. Please wait.' });
     }
 
     // 2. Check course exists and is active

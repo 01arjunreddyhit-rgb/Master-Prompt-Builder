@@ -120,8 +120,29 @@ export const Button = ({ children, variant = 'primary', className = '', ...props
 );
 
 // ── INPUT ─────────────────────────────────────────────────────
-export const Input = ({ className = '', ...props }) => (
-  <input className={`form-input ${className}`} {...props} />
+export const Input = ({ label, icon, className = '', containerStyle = {}, ...props }) => (
+  <div className="form-group" style={{ marginBottom: 16, ...containerStyle }}>
+    {label && <label className="form-label" style={{ display: 'block', marginBottom: 6, fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-3)' }}>{label}</label>}
+    <div style={{ position: 'relative' }}>
+      {icon && <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>{icon}</span>}
+      <input 
+        className={`form-input ${className}`} 
+        style={{ 
+          paddingLeft: icon ? 40 : 12,
+          width: '100%',
+          height: 44,
+          borderRadius: 12,
+          border: '1.5px solid var(--border)',
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          fontSize: '0.9rem',
+          outline: 'none',
+          transition: 'all 0.2s ease'
+        }} 
+        {...props} 
+      />
+    </div>
+  </div>
 );
 
 // ── CARD ──────────────────────────────────────────────────────

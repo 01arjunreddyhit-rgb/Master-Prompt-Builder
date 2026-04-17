@@ -249,21 +249,7 @@ const schemaStatements = [
     department TEXT,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS study_groups (
-    group_id SERIAL PRIMARY KEY,
-    course_id INTEGER NOT NULL,
-    election_id INTEGER NOT NULL,
-    group_name TEXT NOT NULL,
-    capacity INTEGER DEFAULT 45,
-    min_capacity INTEGER DEFAULT 30,
-    created_at TIMESTAMP DEFAULT NOW()
-  )`,
-  `CREATE TABLE IF NOT EXISTS study_group_faculty (
-    id SERIAL PRIMARY KEY,
-    group_id INTEGER NOT NULL,
-    faculty_id INTEGER NOT NULL,
-    is_primary BOOLEAN DEFAULT FALSE
-  )`,
+
   // Dormant future schema note:
   // We intentionally are not creating `election_invites` in the active schema bootstrap.
   // That table belongs to a later invite-first onboarding model where students activate
@@ -326,8 +312,7 @@ const schemaPatchStatements = [
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS credit_weight DECIMAL(3, 1) DEFAULT 3.0`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
-  `ALTER TABLE seats ADD COLUMN IF NOT EXISTS group_id INTEGER`,
-  `ALTER TABLE courses ADD COLUMN IF NOT EXISTS study_groups_count INTEGER DEFAULT 1`,
+  `ALTER TABLE seats ADD COLUMN IF NOT EXISTS room_ticket_id INTEGER`,
 ];
 
 export async function ensureDatabaseSchema() {

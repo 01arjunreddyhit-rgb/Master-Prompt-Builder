@@ -15,7 +15,7 @@ import * as allocCtrl from '../controllers/allocationController';
 import * as cavCtrl from '../controllers/cavController';
 import * as resultCtrl from '../controllers/resultController';
 import * as facultyCtrl from '../controllers/facultyController';
-import * as sgCtrl from '../controllers/studyGroupController';
+import * as crCtrl from '../controllers/classRoomController';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -61,16 +61,20 @@ router.post('/courses/library',          auth, adminOnly, courseCtrl.createLibra
 router.put('/courses/library/:id',       auth, adminOnly, courseCtrl.updateLibraryCourse);
 router.delete('/courses/library/:id',    auth, adminOnly, courseCtrl.deleteLibraryCourse);
 
-// ── STUDY GROUPS & FACULTY ────────────────────────────────────
+// ── CLASS ROOMS & FACULTY ────────────────────────────────────
 router.get('/faculty',                   auth, adminOnly, facultyCtrl.getFaculty);
 router.post('/faculty',                  auth, adminOnly, facultyCtrl.createFaculty);
 router.put('/faculty/:faculty_id',       auth, adminOnly, facultyCtrl.updateFaculty);
 router.delete('/faculty/:faculty_id',    auth, adminOnly, facultyCtrl.deleteFaculty);
 
-router.get('/study-groups',              auth, adminOnly, sgCtrl.getStudyGroups);
-router.post('/study-groups',             auth, adminOnly, sgCtrl.createStudyGroup);
-router.put('/study-groups/:group_id',    auth, adminOnly, sgCtrl.updateStudyGroup);
-router.delete('/study-groups/:group_id', auth, adminOnly, sgCtrl.deleteStudyGroup);
+router.get('/class-rooms',               auth, adminOnly, crCtrl.getClassRooms);
+router.post('/class-rooms',              auth, adminOnly, crCtrl.createClassRoom);
+router.put('/class-rooms/:room_id',      auth, adminOnly, crCtrl.updateClassRoom);
+router.delete('/class-rooms/:room_id',   auth, adminOnly, crCtrl.deleteClassRoom);
+
+router.get('/room-tickets',              auth, adminOnly, crCtrl.getRoomTickets);
+router.post('/room-tickets',             auth, adminOnly, crCtrl.createRoomTicket);
+router.delete('/room-tickets/:ticket_id',auth, adminOnly, crCtrl.deleteRoomTicket);
 
 // ── ELECTIONS ─────────────────────────────────────────────────
 router.post('/elections',                        auth, adminOnly, electionCtrl.createElection);

@@ -511,7 +511,14 @@ export default function AllocationPanel() {
               <input type="number" min="1" value={roundNum} onChange={e=>setRoundNum(Math.max(1,parseInt(e.target.value)||1))}
                 style={{ width:44, border:'none', outline:'none', fontFamily:'var(--mono)', fontWeight:800, fontSize:'1rem', background:'transparent', color:'var(--accent)', textAlign:'center' }} />
             </div>
-            <Button onClick={() => setAdvancedBurstModal(true)} variant="secondary" style={{ color: 'var(--red)' }}>⚡ Burst Protocol</Button>
+            {abacus?.election?.status === 'ACTIVE' && (
+              abacus?.election?.is_paused ? (
+                <Button onClick={async () => { await api.post(`/elections/${electionId}/resume`); loadAbacus(); }} variant="success" style={{ padding:'8px 16px' }}>▶ Resume</Button>
+              ) : (
+                <Button onClick={async () => { await api.post(`/elections/${electionId}/pause`); loadAbacus(); }} variant="secondary" style={{ color: 'var(--amber)', borderColor: 'var(--amber)' }}>⏸ Pause</Button>
+              )
+            )}
+            <Button onClick={() => setAdvancedBurstModal(true)} variant="secondary" style={{ color: 'var(--red)', borderColor: 'var(--red)' }}>⚡ Burst</Button>
           </div>
         </div>
 
@@ -587,23 +594,28 @@ export default function AllocationPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {assistant?.map(row => (
-                      <tr key={row.course_id} style={{ borderBottom:'1px solid var(--border)' }}>
-                        <td style={{ padding:'12px 20px' }}>
-                          <div style={{ fontWeight:700 }}>{row.course_name}</div>
-                          <div style={{ fontSize:'0.7rem', color:'var(--text-4)' }}>{row.subject_code}</div>
-                        </td>
-                        <td style={{ padding:'12px 20px', fontFamily:'var(--mono)' }}>{row.t1_intent}</td>
-                        <td style={{ padding:'12px 20px', fontFamily:'var(--mono)' }}>{row.t2_intent}</td>
-                        <td style={{ padding:'12px 20px', fontWeight:800, color:'var(--accent)' }}>{row.cumulative_intent}</td>
-                        <td style={{ padding:'12px 20px' }}>
-                          <div style={{ width:100, height:6, background:'var(--bg-3)', borderRadius:3 }}>
-                            <div style={{ height:'100%', background:'var(--accent)', borderRadius:3, width:`${(row.cumulative_intent / row.total_students) * 100}%` }} />
-                          </div>
-                          <div style={{ fontSize:'0.65rem', color:'var(--text-4)', marginTop:4 }}>{((row.cumulative_intent / row.total_students) * 100).toFixed(1)}% of students</div>
-                        </td>
-                      </tr>
-                    ))}
+                    {assistant?.map(row => {
+                      const rate = (row.cumulative_intent / (row.total_students || 1)) * 100;
+                      return (
+                        <tr key={row.course_id} style={{ borderBottom:'1px solid var(--border)', background: rate < 20 ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
+                          <td style={{ padding:'12px 20px' }}>
+                            <div style={{ fontWeight:700, color: rate < 20 ? 'var(--red)' : 'var(--text)' }}>{row.course_name}</div>
+                            <div style={{ fontSize:'0.7rem', color:'var(--text-4)' }}>{row.subject_code}</div>
+                          </td>
+                          <td style={{ padding:'12px 20px', fontFamily:'var(--mono)', color:'var(--text-3)' }}>{row.t1_intent}</td>
+                          <td style={{ padding:'12px 20px', fontFamily:'var(--mono)', color:'var(--text-3)' }}>{row.t2_intent}</td>
+                          <td style={{ padding:'12px 20px', fontWeight:800, color: rate < 20 ? 'var(--red)' : 'var(--accent)', fontSize:'1rem' }}>{row.cumulative_intent}</td>
+                          <td style={{ padding:'12px 20px' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                              <div style={{ flex:1, height:8, background:'var(--muted-bg)', borderRadius:4, overflow:'hidden' }}>
+                                <div style={{ height:'100%', background: rate < 20 ? 'var(--red)' : 'var(--accent)', width:`${Math.min(100, rate)}%`, transition:'width 1s ease' }} />
+                              </div>
+                              <span style={{ fontSize:'0.75rem', fontWeight:800, color: rate < 20 ? 'var(--red)' : 'var(--text)', width:45 }}>{rate.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

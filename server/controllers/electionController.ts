@@ -1,6 +1,6 @@
 import pool from '../config/db';
-import { expireCAV  } from './cavController';
-import { lockChoiceResults  } from './resultController';
+import { expireCAV } from './cavController';
+import { lockChoiceResults } from './resultController';
 
 const buildTokenCode = (registerNumber, electionId, tokenNumber) => `A${registerNumber}-E${electionId}-T${tokenNumber}`;
 
@@ -28,18 +28,17 @@ const createElection = async (req, res) => {
       election_name, semester_tag, batch_tag,
       final_courses_per_student = 2, faculty_count = 4,
       min_class_size = 45, max_class_size = 75,
-      field_config = null,   // { register_number: 'public'|'private', section: 'public'|'private', email: 'public'|'private' }
+      field_config = null,
     } = req.body;
 
     if (!election_name) return res.status(400).json({ success: false, message: 'election_name required.' });
 
-    // Check no active election
     const [active] = await pool.execute(
-      "SELECT election_id FROM elections WHERE admin_id=? AND status IN ('NOT_STARTED','ACTIVE','PAUSED')",
+      "SELECT election_id FROM elections WHERE admin_id=? AND status IN ('NOT_STARTED','ACTIVE')",
       [admin_id]
     );
     if (active.length) {
-      return res.status(400).json({ success: false, message: 'You already have an active election. Stop it before creating a new one.' });
+      return res.status(400).json({ success: false, message: 'You already have an active election.' });
     }
 
     const [result] = await pool.execute(
@@ -61,7 +60,7 @@ const createElection = async (req, res) => {
   }
 };
 
-// ── UPDATE ELECTION (before start only) ───────────────────────
+// ── UPDATE ELECTION ───────────────────────────────────────────
 const updateElection = async (req, res) => {
   try {
     const admin_id = req.user.id;
@@ -69,13 +68,11 @@ const updateElection = async (req, res) => {
     const { election_name, semester_tag, batch_tag, final_courses_per_student, faculty_count, min_class_size, max_class_size, field_config } = req.body;
 
     const [rows] = await pool.execute(
-      "SELECT election_id, status FROM elections WHERE election_id=? AND admin_id=?",
+      "SELECT status FROM elections WHERE election_id=? AND admin_id=?",
       [election_id, admin_id]
     );
     if (!rows.length) return res.status(404).json({ success: false, message: 'Election not found.' });
-    if (rows[0].status !== 'NOT_STARTED') {
-      return res.status(400).json({ success: false, message: 'Election can only be edited before it starts.' });
-    }
+    if (rows[0].status !== 'NOT_STARTED') return res.status(400).json({ success: false, message: 'Cannot edit started election.' });
 
     await pool.execute(
       `UPDATE elections SET
@@ -89,16 +86,11 @@ const updateElection = async (req, res) => {
          field_config  = COALESCE(?, field_config)
        WHERE election_id=?`,
       [election_name || null, semester_tag || null, batch_tag || null,
-       final_courses_per_student ? parseInt(final_courses_per_student) : null,
-       faculty_count ? parseInt(faculty_count) : null,
-       min_class_size ? parseInt(min_class_size) : null,
-       max_class_size ? parseInt(max_class_size) : null,
-       field_config ? JSON.stringify(field_config) : null,
-       election_id]
+       final_courses_per_student || null, faculty_count || null, min_class_size || null, max_class_size || null,
+       field_config ? JSON.stringify(field_config) : null, election_id]
     );
     res.json({ success: true, message: 'Election updated.' });
   } catch (err) {
-    console.error('updateElection error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
@@ -106,15 +98,12 @@ const updateElection = async (req, res) => {
 // ── GET ELECTIONS ─────────────────────────────────────────────
 const getElections = async (req, res) => {
   try {
-    const admin_id = req.user.id;
     const [rows] = await pool.execute(
       `SELECT e.*,
-              (SELECT COUNT(*) FROM students s WHERE s.admin_id=e.admin_id AND s.election_id=e.election_id) as student_count,
+              (SELECT COUNT(*) FROM students s WHERE s.election_id=e.election_id) as student_count,
               (SELECT COUNT(*) FROM courses c WHERE c.election_id=e.election_id AND c.is_active=TRUE) as course_count
-       FROM elections e
-       WHERE e.admin_id=?
-       ORDER BY e.created_at DESC`,
-      [admin_id]
+       FROM elections e WHERE e.admin_id=? ORDER BY e.created_at DESC`,
+      [req.user.id]
     );
     res.json({ success: true, data: rows });
   } catch (err) {
@@ -122,293 +111,146 @@ const getElections = async (req, res) => {
   }
 };
 
-// ── GET ELECTION STATUS ───────────────────────────────────────
+// ── GET STATUS ────────────────────────────────────────────────
 const getElectionStatus = async (req, res) => {
   try {
-    const { election_id } = req.params;
-
     const [rows] = await pool.execute(
       `SELECT e.*,
               (SELECT COUNT(*) FROM students WHERE election_id=e.election_id) as total_students,
               (SELECT COUNT(*) FROM courses WHERE election_id=e.election_id AND is_active=TRUE) as active_courses,
-              (SELECT COUNT(*) FROM seats WHERE election_id=e.election_id AND is_available=FALSE) as total_bookings,
-              (SELECT COUNT(DISTINCT student_id) FROM student_tokens
-               WHERE election_id=e.election_id AND status NOT IN ('UNUSED')) as students_started
+              (SELECT COUNT(*) FROM seats WHERE election_id=e.election_id AND is_available=FALSE) as total_bookings
        FROM elections e WHERE e.election_id=?`,
-      [election_id]
+      [req.params.election_id]
     );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Election not found.' });
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Not found.' });
     res.json({ success: true, data: rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 
-// ── PRE-START CHECKLIST ───────────────────────────────────────
+// ── GET CHECKLIST ─────────────────────────────────────────────
 const getChecklist = async (req, res) => {
   try {
-    const admin_id = req.user.id;
     const { election_id } = req.params;
+    const [elections] = await pool.execute('SELECT * FROM elections WHERE election_id=?', [election_id]);
+    const [students]  = await pool.execute('SELECT COUNT(*) as cnt FROM students WHERE election_id=?', [election_id]);
+    const [courses]   = await pool.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+    const [tokens]    = await pool.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?', [election_id]);
+    const [seats]     = await pool.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=?', [election_id]);
 
-    const [elections] = await pool.execute(
-      'SELECT * FROM elections WHERE election_id=? AND admin_id=?',
-      [election_id, admin_id]
-    );
-    if (!elections.length) return res.status(404).json({ success: false, message: 'Election not found.' });
-
-    const [students] = await pool.execute(
-      'SELECT COUNT(*) as cnt FROM students WHERE admin_id=? AND election_id=?',
-      [admin_id, election_id]
-    );
-    const [courses] = await pool.execute(
-      'SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE',
-      [election_id]
-    );
-    const [tokens] = await pool.execute(
-      'SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?',
-      [election_id]
-    );
-    const [seats] = await pool.execute(
-      'SELECT COUNT(*) as cnt FROM seats WHERE election_id=?',
-      [election_id]
-    );
-
-    const studentCount = students[0].cnt;
-    const courseCount = courses[0].cnt;
-    const tokenCount = tokens[0].cnt;
-    const seatCount = seats[0].cnt;
-    const expectedTokens = studentCount * courseCount;
-    const expectedSeats = studentCount * courseCount;
+    const sc = students[0].cnt;
+    const cc = courses[0].cnt;
+    const tc = tokens[0].cnt;
+    const st = seats[0].cnt;
 
     const checklist = {
-      students: { ok: studentCount > 0, count: studentCount, label: 'Students registered' },
-      courses: { ok: courseCount > 0, count: courseCount, label: 'Active courses created' },
-      tokens: { ok: tokenCount >= expectedTokens && expectedTokens > 0, count: tokenCount, expected: expectedTokens, label: 'Tokens generated' },
-      seats: { ok: seatCount >= expectedSeats && expectedSeats > 0, count: seatCount, expected: expectedSeats, label: 'Seats initialised' },
+      students: { ok: sc > 0, count: sc, label: 'Students registered' },
+      courses:  { ok: cc > 0, count: cc, label: 'Active courses created' },
+      tokens:   { ok: tc >= (sc * cc) && sc*cc > 0, count: tc, expected: sc*cc, label: 'Tokens generated' },
+      seats:    { ok: st >= (sc * cc) && sc*cc > 0, count: st, expected: sc*cc, label: 'Seats initialised' },
     };
 
-    const allReady = Object.values(checklist).every(c => c.ok);
-    res.json({ success: true, checklist, allReady, election: elections[0] });
+    res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: elections[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 
-// ── INITIALISE SEATS + TOKENS ─────────────────────────────────
+// ── INITIALISE ────────────────────────────────────────────────
 const initElection = async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const admin_id = req.user.id;
     const { election_id } = req.params;
-
-    const [elections] = await conn.execute(
-      "SELECT * FROM elections WHERE election_id=? AND admin_id=? AND status='NOT_STARTED'",
-      [election_id, admin_id]
-    );
-    if (!elections.length) return res.status(404).json({ success: false, message: 'Election not found or already started.' });
-
-    const [students] = await conn.execute(
-      'SELECT student_id, register_number FROM students WHERE election_id=? AND admin_id=?',
-      [election_id, admin_id]
-    );
-    const [courses] = await conn.execute(
-      'SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE',
-      [election_id]
-    );
-
-    if (!students.length) return res.status(400).json({ success: false, message: 'No students found for this election.' });
-    if (!courses.length) return res.status(400).json({ success: false, message: 'No active courses found.' });
-
     await conn.beginTransaction();
 
-    // Clear existing tokens and seats for this election
+    const [students] = await conn.execute('SELECT student_id, register_number FROM students WHERE election_id=?', [election_id]);
+    const [courses]  = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+
+    if (!students.length || !courses.length) throw new Error('Students or courses missing.');
+
     await conn.execute('DELETE FROM seats WHERE election_id=?', [election_id]);
     await conn.execute('DELETE FROM student_tokens WHERE election_id=?', [election_id]);
 
-    const totalSeats = students.length * courses.length;
-
-    // Create global seat pool
-    for (let i = 1; i <= totalSeats; i++) {
-      const seat_code = `S-${String(i).padStart(4, '0')}`;
-      await conn.execute(
-        'INSERT INTO seats (seat_number, seat_code, election_id, is_available) VALUES (?,?,?,TRUE)',
-        [i, seat_code, election_id]
-      );
+    const total = students.length * courses.length;
+    for (let i = 1; i <= total; i++) {
+      await conn.execute('INSERT INTO seats (seat_number, seat_code, election_id, is_available) VALUES (?,?,?,TRUE)', [i, `S-${String(i).padStart(4,'0')}`, election_id]);
     }
-
-    // Generate tokens for each student
-    for (const student of students) {
+    for (const s of students) {
       for (let t = 1; t <= courses.length; t++) {
-        const token_code = buildTokenCode(student.register_number, election_id, t);
-        await conn.execute(
-          'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
-          [student.student_id, election_id, t, token_code]
-        );
+        await conn.execute('INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)', [s.student_id, election_id, t, buildTokenCode(s.register_number, election_id, t)]);
       }
     }
 
     await conn.commit();
-    res.json({
-      success: true,
-      message: `Initialised: ${totalSeats} seats + ${students.length * courses.length} tokens generated.`,
-      seats_created: totalSeats,
-      tokens_created: students.length * courses.length,
-    });
+    res.json({ success: true, message: 'Initialised.' });
   } catch (err) {
     await conn.rollback();
-    console.error('initElection error:', err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ success: false, message: err.message });
   } finally {
     conn.release();
   }
 };
 
-// ── START ELECTION ────────────────────────────────────────────
+// ── START ─────────────────────────────────────────────────────
 const startElection = async (req, res) => {
   try {
-    const admin_id = req.user.id;
-    const { election_id } = req.params;
-
-    const [rows] = await pool.execute(
-      "SELECT * FROM elections WHERE election_id=? AND admin_id=? AND status='NOT_STARTED'",
-      [election_id, admin_id]
-    );
-    if (!rows.length) return res.status(400).json({ success: false, message: 'Election not found or already started.' });
-
-    await pool.execute(
-      "UPDATE elections SET status='ACTIVE', window_start=NOW() WHERE election_id=?",
-      [election_id]
-    );
-
-    res.json({ success: true, message: 'Election started. Students can now book seats.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    await pool.execute("UPDATE elections SET status='ACTIVE', window_start=NOW(), is_paused=FALSE WHERE election_id=? AND status='NOT_STARTED'", [req.params.election_id]);
+    res.json({ success: true, message: 'Started.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
 };
 
-// ── PAUSE ELECTION ────────────────────────────────────────────
+// ── PAUSE ─────────────────────────────────────────────────────
 const pauseElection = async (req, res) => {
   try {
-    const admin_id = req.user.id;
-    const { election_id } = req.params;
-
-    await pool.execute(
-      "UPDATE elections SET status='PAUSED' WHERE election_id=? AND admin_id=? AND status='ACTIVE'",
-      [election_id, admin_id]
-    );
-    res.json({ success: true, message: 'Election paused.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    await pool.execute("UPDATE elections SET is_paused=TRUE WHERE election_id=? AND status='ACTIVE'", [req.params.election_id]);
+    res.json({ success: true, message: 'Paused.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
 };
 
-// ── RESUME ELECTION ───────────────────────────────────────────
+// ── RESUME ────────────────────────────────────────────────────
 const resumeElection = async (req, res) => {
   try {
-    const admin_id = req.user.id;
-    const { election_id } = req.params;
-
-    await pool.execute(
-      "UPDATE elections SET status='ACTIVE' WHERE election_id=? AND admin_id=? AND status='PAUSED'",
-      [election_id, admin_id]
-    );
-    res.json({ success: true, message: 'Election resumed.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    await pool.execute("UPDATE elections SET is_paused=FALSE WHERE election_id=? AND status='ACTIVE'", [req.params.election_id]);
+    res.json({ success: true, message: 'Resumed.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
 };
 
-// ── STOP ELECTION ─────────────────────────────────────────────
+// ── STOP ──────────────────────────────────────────────────────
 const stopElection = async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const admin_id = req.user.id;
     const { election_id } = req.params;
-
-    const [rows] = await conn.execute(
-      "SELECT * FROM elections WHERE election_id=? AND admin_id=? AND status IN ('ACTIVE','PAUSED')",
-      [election_id, admin_id]
-    );
-    if (!rows.length) return res.status(400).json({ success: false, message: 'Election not found or not active.' });
-
     await conn.beginTransaction();
 
-    // AUTO-ASSIGN non-participants
-    const [students] = await conn.execute(
-      'SELECT DISTINCT student_id, register_number FROM students WHERE election_id=?',
-      [election_id]
-    );
+    const [active] = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE AND is_burst=FALSE', [election_id]);
+    const [students] = await conn.execute('SELECT student_id FROM students WHERE election_id=?', [election_id]);
 
-    const [activeCourses] = await conn.execute(
-      'SELECT course_id, course_name FROM courses WHERE election_id=? AND is_active=TRUE AND is_burst=FALSE ORDER BY course_name ASC',
-      [election_id]
-    );
+    for (const s of students) {
+      const [unused] = await conn.execute("SELECT * FROM student_tokens WHERE student_id=? AND status='UNUSED' ORDER BY token_number ASC", [s.student_id]);
+      const [booked] = await conn.execute("SELECT course_id FROM student_tokens WHERE student_id=? AND course_id IS NOT NULL", [s.student_id]);
+      const bookedIds = booked.map(b => b.course_id);
+      const remaining = active.filter(c => !bookedIds.includes(c.course_id));
 
-    let autoAssigned = 0;
-
-    for (const student of students) {
-      // Find unused tokens
-      const [unusedTokens] = await conn.execute(
-        "SELECT * FROM student_tokens WHERE student_id=? AND election_id=? AND status='UNUSED' ORDER BY token_number ASC",
-        [student.student_id, election_id]
-      );
-      if (!unusedTokens.length) continue;
-
-      // Find courses not yet booked by this student
-      const [bookedCourseIds] = await conn.execute(
-        "SELECT DISTINCT course_id FROM student_tokens WHERE student_id=? AND election_id=? AND course_id IS NOT NULL",
-        [student.student_id, election_id]
-      );
-      const bookedIds = bookedCourseIds.map(r => r.course_id);
-      const remaining = activeCourses.filter(c => !bookedIds.includes(c.course_id));
-
-      for (let i = 0; i < unusedTokens.length && i < remaining.length; i++) {
-        // Get highest available seat (non-participants go to back)
-        const [seats] = await conn.execute(
-          'SELECT * FROM seats WHERE election_id=? AND is_available=TRUE ORDER BY seat_number DESC LIMIT 1',
-          [election_id]
-        );
-        if (!seats.length) continue;
-
-        const seat = seats[0];
-        const token = unusedTokens[i];
-        const course = remaining[i];
-
-        await conn.execute(
-          'UPDATE seats SET is_available=FALSE, course_id=?, student_token_id=?, booked_at=NOW() WHERE seat_id=?',
-          [course.course_id, token.token_id, seat.seat_id]
-        );
-        await conn.execute(
-          "UPDATE student_tokens SET status='AUTO', course_id=?, seat_id=?, timestamp_booked=NOW(), is_auto_assigned=TRUE WHERE token_id=?",
-          [course.course_id, seat.seat_id, token.token_id]
-        );
-        autoAssigned++;
+      for (let i = 0; i < unused.length && i < remaining.length; i++) {
+        const [seats] = await conn.execute('SELECT seat_id FROM seats WHERE election_id=? AND is_available=TRUE ORDER BY seat_number DESC LIMIT 1', [election_id]);
+        if (!seats.length) break;
+        await conn.execute('UPDATE seats SET is_available=FALSE, course_id=?, student_token_id=?, booked_at=NOW() WHERE seat_id=?', [remaining[i].course_id, unused[i].token_id, seats[0].seat_id]);
+        await conn.execute("UPDATE student_tokens SET status='AUTO', course_id=?, seat_id=?, is_auto_assigned=TRUE WHERE token_id=?", [remaining[i].course_id, seats[0].seat_id, unused[i].token_id]);
       }
     }
 
-    await conn.execute(
-      "UPDATE elections SET status='STOPPED', window_end=NOW() WHERE election_id=?",
-      [election_id]
-    );
-
+    await conn.execute("UPDATE elections SET status='STOPPED', window_end=NOW(), is_paused=FALSE WHERE election_id=?", [election_id]);
     await conn.commit();
-
-    // Expire CAV & messages (non-blocking)
-    expireCAV(election_id).catch(() => {});
-
-    // MANDATORY: Lock choice results snapshot (immutable record of what students chose)
-    lockChoiceResults(election_id).catch(e => console.error('lockChoiceResults failed:', e));
-
-    res.json({ success: true, message: `Election stopped. ${autoAssigned} tokens auto-assigned. Results locked.`, autoAssigned });
+    expireCAV(election_id).catch(()=>{});
+    lockChoiceResults(election_id).catch(()=>{});
+    res.json({ success: true, message: 'Stopped.' });
   } catch (err) {
     await conn.rollback();
-    console.error('stopElection error:', err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ success: false, message: 'Error.' });
   } finally {
     conn.release();
   }
 };
 
-export { createElection, updateElection, getElections, getElectionStatus, getChecklist,
-  initElection, startElection, pauseElection, resumeElection, stopElection,
- };
+export { createElection, updateElection, getElections, getElectionStatus, getChecklist, initElection, startElection, pauseElection, resumeElection, stopElection };
