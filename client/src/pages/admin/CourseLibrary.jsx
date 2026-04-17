@@ -262,7 +262,7 @@ export default function CourseLibrary() {
               background: var(--bg-2);
             }
           `}</style>
-          </>}
+          </>)}
         </div>
       </main>
     </div>

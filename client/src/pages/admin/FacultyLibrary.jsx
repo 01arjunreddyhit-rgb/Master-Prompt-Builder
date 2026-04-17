@@ -189,7 +189,7 @@ export default function FacultyLibrary() {
               box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
             }
           `}</style>
-          </>}
+          </>)}
         </div>
       </main>
     </div>
