@@ -95,6 +95,7 @@ router.put('/student/password',          auth, studentOnly, studentCtrl.changePa
 router.get('/allocation/:election_id/pool',           auth, adminOnly, allocCtrl.getRoundPool);
 router.post('/allocation/confirm',                    auth, adminOnly, allocCtrl.confirmCourse);
 router.post('/allocation/burst',                      auth, adminOnly, allocCtrl.burstCourse);
+router.post('/allocation/advanced-burst',             auth, adminOnly, allocCtrl.advancedBurst);
 router.get('/allocation/:election_id/verify',         auth, adminOnly, allocCtrl.verifyAllocation);
 router.get('/allocation/:election_id/export',         auth, adminOnly, allocCtrl.exportCSV);
 router.post('/allocation/:election_id/email',         auth, adminOnly, allocCtrl.sendResultEmails);
@@ -102,6 +103,7 @@ router.get('/allocation/:election_id/unallocated',    auth, adminOnly, allocCtrl
 router.post('/allocation/:election_id/arrange',       auth, adminOnly, allocCtrl.manualArrange);
 router.get('/allocation/:election_id/steps',          auth, adminOnly, allocCtrl.getSteps);
 router.get('/allocation/:election_id/abacus',         auth, adminOnly, allocCtrl.getAbacusSummary);
+router.get('/allocation/:election_id/assistant',      auth, adminOnly, allocCtrl.getAssistantAnalytics);
 
 // ── RESULTS (two-store system) ────────────────────────────────
 // Choice results — immutable snapshot locked at election stop
@@ -109,12 +111,9 @@ router.get('/results/:election_id/choices',            auth, adminOnly, resultCt
 // Allocation sessions — named, versioned admin work
 router.get('/results/:election_id/sessions',           auth, adminOnly, resultCtrl.getSessions);
 router.post('/results/:election_id/sessions',          auth, adminOnly, resultCtrl.createSession);
+
 router.get('/results/sessions/:session_id',            auth, adminOnly, resultCtrl.getSessionDetail);
 router.post('/results/sessions/:session_id/finalize',  auth, adminOnly, resultCtrl.finalizeSession);
-router.post('/results/sessions/:session_id/restore',   auth, adminOnly, resultCtrl.restoreSession);
-router.post('/results/sessions/:session_id/override',  auth, adminOnly, resultCtrl.saveOverride);
-router.get('/results/sessions/:session_id/export',     auth, adminOnly, resultCtrl.exportSession);
-
 // ── CAV — public ──────────────────────────────────────────────
 router.get('/join/:code',                      cavCtrl.resolveCode);
 

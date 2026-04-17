@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AdminSidebar } from '../../components/ui/Sidebar';
-import { Alert, Spinner, Modal } from '../../components/ui/index';
+import { Alert, Spinner, Modal, Card, Button, Input } from '../../components/ui/index';
 import api from '../../services/api';
 
 /* ── Tier colours ──────────────────────────────────────────── */
@@ -330,6 +330,7 @@ export default function AllocationPanel() {
   const [elections, setElections]         = useState([]);
   const [electionId, setElectionId]       = useState(sp.get('id') || '');
   const [abacus, setAbacus]               = useState(null);
+  const [assistant, setAssistant]         = useState(null);
   const [steps, setSteps]                 = useState([]);
   const [loading, setLoading]             = useState(false);
   const [stepsLoading, setStepsLoading]   = useState(false);
@@ -340,6 +341,10 @@ export default function AllocationPanel() {
   const [tab, setTab]                     = useState('abacus');
   const [confirmModal, setConfirmModal]   = useState(null);
   const [burstModal, setBurstModal]       = useState(null);
+  const [advancedBurstModal, setAdvancedBurstModal] = useState(false);
+  const [burstMode, setBurstMode]         = useState('A');
+  const [burstTargetSubject, setBurstTargetSubject] = useState('');
+  const [burstTargetToken, setBurstTargetToken]     = useState(1);
   const [capacity, setCapacity]           = useState('');
   const [burstReason, setBurstReason]     = useState('');
   const [unallocated, setUnallocated]     = useState([]);
@@ -367,6 +372,13 @@ export default function AllocationPanel() {
       .finally(() => setLoading(false));
   }, [electionId]);
 
+  const loadAssistant = useCallback(() => {
+    if (!electionId) return;
+    api.get(`/allocation/${electionId}/assistant`)
+      .then(r => setAssistant(r.data.data))
+      .catch(() => {});
+  }, [electionId]);
+
   const loadSteps = useCallback(() => {
     if (!electionId) return;
     setStepsLoading(true);
@@ -385,8 +397,8 @@ export default function AllocationPanel() {
   }, [electionId]);
 
   useEffect(() => {
-    if (electionId) { loadAbacus(); loadSteps(); }
-  }, [electionId, loadAbacus, loadSteps]);
+    if (electionId) { loadAbacus(); loadSteps(); loadAssistant(); }
+  }, [electionId, loadAbacus, loadSteps, loadAssistant]);
 
   useEffect(() => {
     if (tab === 'unallocated') loadUnallocated();
@@ -400,7 +412,7 @@ export default function AllocationPanel() {
         capacity: parseInt(capacity), round_number: roundNum,
       });
       setMsg({ type:'success', text:`✓ ${confirmModal.course_name}: ${data.confirmed} confirmed, ${data.burst} cascaded.` });
-      setConfirmModal(null); loadAbacus(); loadSteps();
+      setConfirmModal(null); loadAbacus(); loadSteps(); loadAssistant();
     } catch (err) { setMsg({ type:'error', text: err.response?.data?.message || 'Confirm failed.' }); }
     finally { setActionLoading(''); }
   };
@@ -413,7 +425,22 @@ export default function AllocationPanel() {
         round_number: roundNum, reason: burstReason,
       });
       setMsg({ type:'success', text:`✕ ${data.course_name} burst. ${data.burst_count} cascaded. Reason saved.` });
-      setBurstModal(null); loadAbacus(); loadSteps();
+      setBurstModal(null); loadAbacus(); loadSteps(); loadAssistant();
+    } catch (err) { setMsg({ type:'error', text: err.response?.data?.message || 'Burst failed.' }); }
+    finally { setActionLoading(''); }
+  };
+
+  const handleAdvancedBurst = async () => {
+    setActionLoading('adv_burst'); setMsg(null);
+    try {
+      const { data } = await api.post('/allocation/advanced-burst', {
+        election_id: parseInt(electionId),
+        mode: burstMode,
+        subject_id: burstTargetSubject,
+        token_number: burstTargetToken,
+      });
+      setMsg({ type:'success', text: data.message });
+      setAdvancedBurstModal(false); loadAbacus(); loadSteps(); loadAssistant();
     } catch (err) { setMsg({ type:'error', text: err.response?.data?.message || 'Burst failed.' }); }
     finally { setActionLoading(''); }
   };
@@ -471,7 +498,7 @@ export default function AllocationPanel() {
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:28 }}>
           <div>
             <h1 style={{ fontFamily:'var(--font-display)', fontSize:'1.7rem', fontWeight:800, letterSpacing:'-0.6px', color:'var(--text)', marginBottom:4 }}>Allocation Panel</h1>
-            <p style={{ fontSize:'0.84rem', color:'var(--text-3)' }}>PWFCFS-MRA · Abacus table with Original / Allocated trackers and full step history</p>
+            <p style={{ fontSize:'0.84rem', color:'var(--text-3)' }}>Evolution of Logic · Advanced Bursting and Preference Cascade Management</p>
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'center' }}>
             <select value={electionId} onChange={e => { setElectionId(e.target.value); setAbacus(null); setSteps([]); setVerifyResult(null); }}
@@ -484,10 +511,7 @@ export default function AllocationPanel() {
               <input type="number" min="1" value={roundNum} onChange={e=>setRoundNum(Math.max(1,parseInt(e.target.value)||1))}
                 style={{ width:44, border:'none', outline:'none', fontFamily:'var(--mono)', fontWeight:800, fontSize:'1rem', background:'transparent', color:'var(--accent)', textAlign:'center' }} />
             </div>
-            <button onClick={() => { loadAbacus(); loadSteps(); }} disabled={loading}
-              style={{ padding:'8px 14px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontFamily:'var(--font)', fontSize:'0.82rem', fontWeight:600 }}>
-              {loading ? <Spinner dark /> : '↻'}
-            </button>
+            <Button onClick={() => setAdvancedBurstModal(true)} variant="secondary" style={{ color: 'var(--red)' }}>⚡ Burst Protocol</Button>
           </div>
         </div>
 
@@ -519,6 +543,7 @@ export default function AllocationPanel() {
             <div style={{ display:'flex', gap:4, background:'var(--muted-bg)', borderRadius:12, padding:4, marginBottom:22, width:'fit-content', flexWrap:'wrap' }}>
               {[
                 { id:'abacus',      label:'⊞ Abacus Table' },
+                { id:'assistant',   label:'💡 Assistant Tab' },
                 { id:'steps',       label:`📋 Step History (${steps.length})` },
                 { id:'unallocated', label:'⚠ Unallocated' },
                 { id:'publish',     label:'✓ Verify & Publish' },
@@ -542,6 +567,46 @@ export default function AllocationPanel() {
                   }}
                 />
               ) : <div className="alert alert-warning">No data. Select an election.</div>
+            )}
+
+            {/* ── Assistant Tab ── */}
+            {tab === 'assistant' && (
+              <div style={{ background:'var(--surface)', borderRadius:20, border:'1px solid var(--border)', overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
+                <div style={{ padding:'20px', borderBottom:'1px solid var(--border)' }}>
+                  <h3 style={{ margin:0, fontSize:'1.1rem' }}>Cumulative Intent Analytics</h3>
+                  <p style={{ margin:'4px 0 0 0', fontSize:'0.85rem', color:'var(--text-3)' }}>Analyzing T1 + T2 combined demand to identify potentially underperforming subjects.</p>
+                </div>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:'var(--bg-2)', textAlign:'left' }}>
+                      <th style={{ padding:'12px 20px', fontSize:'0.75rem' }}>Course</th>
+                      <th style={{ padding:'12px 20px', fontSize:'0.75rem' }}>T1 Intent</th>
+                      <th style={{ padding:'12px 20px', fontSize:'0.75rem' }}>T2 Intent</th>
+                      <th style={{ padding:'12px 20px', fontSize:'0.75rem' }}>Cumulative (T1+T2)</th>
+                      <th style={{ padding:'12px 20px', fontSize:'0.75rem' }}>Capture Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assistant?.map(row => (
+                      <tr key={row.course_id} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'12px 20px' }}>
+                          <div style={{ fontWeight:700 }}>{row.course_name}</div>
+                          <div style={{ fontSize:'0.7rem', color:'var(--text-4)' }}>{row.subject_code}</div>
+                        </td>
+                        <td style={{ padding:'12px 20px', fontFamily:'var(--mono)' }}>{row.t1_intent}</td>
+                        <td style={{ padding:'12px 20px', fontFamily:'var(--mono)' }}>{row.t2_intent}</td>
+                        <td style={{ padding:'12px 20px', fontWeight:800, color:'var(--accent)' }}>{row.cumulative_intent}</td>
+                        <td style={{ padding:'12px 20px' }}>
+                          <div style={{ width:100, height:6, background:'var(--bg-3)', borderRadius:3 }}>
+                            <div style={{ height:'100%', background:'var(--accent)', borderRadius:3, width:`${(row.cumulative_intent / row.total_students) * 100}%` }} />
+                          </div>
+                          <div style={{ fontSize:'0.65rem', color:'var(--text-4)', marginTop:4 }}>{((row.cumulative_intent / row.total_students) * 100).toFixed(1)}% of students</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {/* ── Steps Tab ── */}
@@ -650,10 +715,6 @@ export default function AllocationPanel() {
               <input className="form-input" type="number" value={capacity} onChange={e => setCapacity(e.target.value)} min="1" max={confirmModal.max_enrollment} />
               <div className="form-hint">Top {capacity||0} students (by FCFS seat order) are confirmed. Any beyond capacity cascade to their next token preference. Tags (Self/Auto) are preserved.</div>
             </div>
-            <div style={{ display:'flex', gap:12, fontSize:'0.76rem', color:'var(--text-3)', marginTop:6 }}>
-              <MethodTag auto={false} /> <span>= student booked themselves</span>
-              <span style={{ marginLeft:12 }}><MethodTag auto={true} /></span> <span>= auto-assigned by system</span>
-            </div>
           </Modal>
         )}
 
@@ -667,30 +728,68 @@ export default function AllocationPanel() {
                 {burstModal.subject_code || 'COURSE'}
               </div>
               <div style={{ fontWeight:800, fontSize:'1.1rem', color:'white', marginBottom:8 }}>{burstModal.course_name}</div>
-              <div style={{ display:'flex', gap:16, fontSize:'0.75rem', flexWrap:'wrap' }}>
-                {[
-                  ['Currently enrolled', calcAllocTot(burstModal), '#FCA5A5'],
-                  ['Min required',       burstModal.min_enrollment,  '#FCD34D'],
-                  ['Max capacity',       burstModal.max_enrollment,   'rgba(255,255,255,0.6)'],
-                ].map(([lbl,v,c]) => (
-                  <span key={lbl} style={{ color:'rgba(255,255,255,0.45)' }}>{lbl}: <strong style={{ color:c }}>{v}</strong></span>
-                ))}
-              </div>
             </div>
 
             <div style={{ background:'#FFF8F0', border:'1px solid #FDE68A', borderRadius:12, padding:'12px 16px', marginBottom:18, fontSize:'0.78rem', color:'#92400E', lineHeight:1.7 }}>
-              <strong>Abacus cascade:</strong> Every student who booked this course has their token for it marked BURST. By gravity — like beads on an abacus — their next preference moves up (T2→T1, T3→T2, etc). The <strong>Allocated</strong> tracker updates. A numbered snapshot is saved to Step History automatically.
+              <strong>Abacus cascade:</strong> Every student who booked this course has their token for it marked BURST. Their next preference (T2, T3, etc.) will be promoted automatically.
             </div>
 
             <div className="form-group">
               <label className="form-label">Reason for elimination</label>
               <textarea className="form-input" rows={3} value={burstReason} onChange={e => setBurstReason(e.target.value)}
                 style={{ resize:'vertical', fontFamily:'var(--font)', lineHeight:1.6 }} />
-              <div className="form-hint">Pre-filled automatically. Edit before confirming — this appears in the Step History and all reports.</div>
             </div>
+          </Modal>
+        )}
 
-            <div className="alert alert-error" style={{ marginBottom:0 }}>
-              <strong>Cannot be undone.</strong> All {calcAllocTot(burstModal)} enrolled students will cascade to their next preferences.
+        {/* ══ ADVANCED BURST MODAL ══ */}
+        {advancedBurstModal && (
+          <Modal title="⚡ Advanced Burst Protocol" onClose={() => setAdvancedBurstModal(false)}
+            footer={<><button className="btn btn-ghost btn-sm" onClick={() => setAdvancedBurstModal(false)}>Cancel</button><button className="btn btn-danger" onClick={handleAdvancedBurst} disabled={actionLoading==='adv_burst'}>{actionLoading==='adv_burst'?<Spinner/>:'Execute Burst'}</button></>}>
+            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+              <div className="form-group">
+                <label className="form-label">Burst Mode</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                  {[
+                    { id:'A', lbl:'Mode A', desc:'Burst Subject', icon:'📚' },
+                    { id:'B', lbl:'Mode B', desc:'Burst Token', icon:'🎫' },
+                    { id:'C', lbl:'Mode C', desc:'Intersection', icon:'🎯' },
+                  ].map(m => (
+                    <div key={m.id} onClick={() => setBurstMode(m.id)}
+                      style={{ padding:'12px', borderRadius:12, border:`2px solid ${burstMode===m.id?'var(--red)':'var(--border)'}`, cursor:'pointer', background:burstMode===m.id?'#FEF2F2':'var(--surface)', textAlign:'center', transition:'all 0.2s' }}>
+                      <div style={{ fontSize:'1.2rem', marginBottom:4 }}>{m.icon}</div>
+                      <div style={{ fontWeight:800, fontSize:'0.75rem', color:burstMode===m.id?'var(--red)':'var(--text-3)' }}>{m.lbl}</div>
+                      <div style={{ fontSize:'0.65rem', color:'var(--text-4)' }}>{m.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {(burstMode === 'A' || burstMode === 'C') && (
+                <div className="form-group">
+                  <label className="form-label">Target Subject</label>
+                  <select className="form-input" value={burstTargetSubject} onChange={e => setBurstTargetSubject(e.target.value)}>
+                    <option value="">— Select Course —</option>
+                    {abacus?.data?.filter(c=>!c.is_burst).map(c => <option key={c.course_id} value={c.course_id}>{c.course_name} ({c.subject_code})</option>)}
+                  </select>
+                </div>
+              )}
+
+              {(burstMode === 'B' || burstMode === 'C') && (
+                <div className="form-group">
+                  <label className="form-label">Target Token Tier</label>
+                  <div style={{ display:'flex', gap:8 }}>
+                    {[1,2,3,4,5].map(t => (
+                      <button key={t} onClick={() => setBurstTargetToken(t)}
+                        style={{ flex:1, padding:'10px', borderRadius:8, border:`1px solid ${burstTargetToken===t?'var(--red)':'var(--border)'}`, background:burstTargetToken===t?'var(--red)':'var(--surface)', color:burstTargetToken===t?'white':'var(--text)', fontWeight:800 }}>T{t}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ padding:'12px', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, fontSize:'0.75rem', color:'#991B1B', lineHeight:1.5 }}>
+                <strong>Warning:</strong> Executing this will permanently burst all matching tokens and initiate a preference cascade for affected students. This is a heavy logic operation.
+              </div>
             </div>
           </Modal>
         )}

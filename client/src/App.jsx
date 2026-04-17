@@ -21,7 +21,7 @@ const AdminStudents = lazy(() => import('./pages/admin/Students'));
 const AdminPending = lazy(() => import('./pages/admin/Pending'));
 const AdminCourses = lazy(() => import('./pages/admin/Courses'));
 const CourseLibrary = lazy(() => import('./pages/admin/CourseLibrary'));
-const AdminFaculty = lazy(() => import('./pages/admin/Faculty'));
+const AdminFaculty = lazy(() => import('./pages/admin/FacultyLibrary'));
 const ElectionControl = lazy(() => import('./pages/admin/ElectionControl'));
 const AllocationPanel = lazy(() => import('./pages/admin/AllocationPanel'));
 const AdminProfile = lazy(() => import('./pages/admin/Profile'));

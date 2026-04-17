@@ -271,7 +271,37 @@ const schemaStatements = [
 // That table belongs to a later invite-first onboarding model where students activate
 // directly from an election link. The current live flow remains self-registration.
 
+  `CREATE TABLE IF NOT EXISTS class_rooms (
+    room_id SERIAL PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    room_name TEXT NOT NULL,
+    room_number_roman TEXT,
+    base_capacity INTEGER DEFAULT 60,
+    current_capacity INTEGER DEFAULT 60,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS room_tickets (
+    ticket_id SERIAL PRIMARY KEY,
+    election_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    room_id INTEGER NOT NULL,
+    faculty_id INTEGER,
+    assigned_capacity INTEGER,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS allocation_versions (
+    version_id SERIAL PRIMARY KEY,
+    election_id INTEGER NOT NULL,
+    version_name TEXT NOT NULL,
+    parent_version_id INTEGER,
+    data_snapshot JSON NOT NULL,
+    is_published BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+];
+
 const schemaPatchStatements = [
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS is_paused BOOLEAN DEFAULT FALSE`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS college_name TEXT`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS otp_code TEXT`,

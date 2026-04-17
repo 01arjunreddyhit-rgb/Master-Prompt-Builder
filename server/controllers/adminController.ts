@@ -109,12 +109,24 @@ const reviewPending = async (req, res) => {
       );
 
       await conn.commit();
-      return res.json({ success: true, message: 'Student approved and account created.' });
+      
+      let impact = null;
+      if (election) {
+        const [cCount] = await conn.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election.election_id]);
+        const courseCount = cCount[0].cnt;
+        impact = {
+          tokensIssued: courseCount,
+          poolExpansion: courseCount,
+          message: `By approving this student, you have issued ${courseCount} new tokens and increased the Universal Seat Pool by ${courseCount} units. This will impact the total seat availability.`
+        };
+      }
+
+      return res.json({ success: true, message: 'Student approved and account created.', impact });
     }
 
     res.status(400).json({ success: false, message: 'Invalid action. Use approve or reject.' });
   } catch (err) {
-    await conn.rollback();
+    if (conn) await conn.rollback();
     console.error('reviewPending error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
   } finally {
@@ -330,8 +342,8 @@ const getStudents = async (req, res) => {
     let query = `
       SELECT s.student_id, s.register_number, s.full_student_id, s.name,
              s.email, s.section, s.is_approved, s.created_at,
-             COUNT(CASE WHEN st.status='CONFIRMED' THEN 1 END) as confirmed_count,
-             COUNT(CASE WHEN st.status IN ('BOOKED','CONFIRMED','AUTO') THEN 1 END) as booked_count
+              COUNT(CASE WHEN st.status='CONFIRMED' THEN 1 END) as confirmed_count,
+              COUNT(CASE WHEN st.status IN ('BOOKED','CONFIRMED','AUTO') THEN 1 END) as booked_count
       FROM students s
       LEFT JOIN student_tokens st ON s.student_id = st.student_id
       WHERE s.admin_id=?
@@ -596,9 +608,22 @@ const bulkReviewPending = async (req, res) => {
     }
 
     await conn.commit();
-    res.json({ success: true, message: `${processed.length} registrations processed.`, count: processed.length });
+
+    let impact = null;
+    if (election && processed.length > 0) {
+      const [cCount] = await conn.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election.election_id]);
+      const courseCount = cCount[0].cnt;
+      const totalTokens = courseCount * processed.length;
+      impact = {
+        tokensIssued: totalTokens,
+        poolExpansion: totalTokens,
+        message: `By approving ${processed.length} students, you have issued ${totalTokens} new tokens and increased the Universal Seat Pool by ${totalTokens} units. This will impact the total seat availability.`
+      };
+    }
+
+    res.json({ success: true, message: `${processed.length} registrations processed.`, count: processed.length, impact });
   } catch (err) {
-    await conn.rollback();
+    if (conn) await conn.rollback();
     console.error('bulkReviewPending error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
   } finally {

@@ -81,6 +81,35 @@ const getRoundPool = async (req, res) => {
   }
 };
 
+// ── GET ASSISTANT ANALYTICS (Cumulative Intent) ────────────────
+const getAssistantAnalytics = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+
+    const [rows] = await pool.execute(
+      `SELECT
+         c.course_id, c.course_name, c.subject_code,
+         COUNT(CASE WHEN st.token_number=1 AND st.status IN ('BOOKED','CONFIRMED') THEN 1 END) as t1_intent,
+         COUNT(CASE WHEN st.token_number=2 AND st.status IN ('BOOKED','CONFIRMED') THEN 1 END) as t2_intent,
+         (COUNT(CASE WHEN st.token_number=1 AND st.status IN ('BOOKED','CONFIRMED') THEN 1 END) +
+          COUNT(CASE WHEN st.token_number=2 AND st.status IN ('BOOKED','CONFIRMED') THEN 1 END)) as cumulative_intent,
+         (SELECT COUNT(*) FROM students WHERE election_id=?) as total_students
+       FROM courses c
+       LEFT JOIN student_tokens st ON st.course_id=c.course_id AND st.election_id=c.election_id
+       WHERE c.election_id=?
+       GROUP BY c.course_id
+       ORDER BY cumulative_intent DESC`,
+      [election_id, election_id]
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('getAssistantAnalytics error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 // ── CONFIRM COURSE at capacity N ──────────────────────────────
 // Top-N by seat number -> CONFIRMED, rest -> BURST -> cascade
 const confirmCourse = async (req, res) => {
@@ -677,4 +706,57 @@ const getAbacusSummary = async (req, res) => {
   }
 };
 
-export { getRoundPool, confirmCourse, burstCourse, verifyAllocation, exportCSV, sendResultEmails, manualArrange, getUnallocated, getSteps, getAbacusSummary  };
+// ── ADVANCED BURST ENGINE ─────────────────────────────────────
+// Mode A: Subject, Mode B: Token, Mode C: Intersection
+const advancedBurst = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { election_id, mode, subject_id, token_number, reason } = req.body;
+
+    await conn.beginTransaction();
+
+    let burstTokens = [];
+    if (mode === 'A') {
+      // Burst by Subject
+      const [rows] = await conn.execute(
+        "SELECT token_id, student_id FROM student_tokens WHERE course_id=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')",
+        [subject_id, election_id]
+      );
+      burstTokens = rows;
+      await conn.execute("UPDATE student_tokens SET status='BURST', seat_id=NULL WHERE course_id=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')", [subject_id, election_id]);
+    } else if (mode === 'B') {
+      // Burst by Token
+      const [rows] = await conn.execute(
+        "SELECT token_id, student_id FROM student_tokens WHERE token_number=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')",
+        [token_number, election_id]
+      );
+      burstTokens = rows;
+      await conn.execute("UPDATE student_tokens SET status='BURST', seat_id=NULL WHERE token_number=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')", [token_number, election_id]);
+    } else if (mode === 'C') {
+      // Intersection
+      const [rows] = await conn.execute(
+        "SELECT token_id, student_id FROM student_tokens WHERE course_id=? AND token_number=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')",
+        [subject_id, token_number, election_id]
+      );
+      burstTokens = rows;
+      await conn.execute("UPDATE student_tokens SET status='BURST', seat_id=NULL WHERE course_id=? AND token_number=? AND election_id=? AND status IN ('BOOKED','CONFIRMED')", [subject_id, token_number, election_id]);
+    }
+
+    if (burstTokens.length) {
+      const studentIds = [...new Set(burstTokens.map(t => t.student_id))];
+      await runPromotion(conn, election_id, studentIds);
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: `Burst Mode ${mode} completed. ${burstTokens.length} students cascaded.`, count: burstTokens.length });
+  } catch (err) {
+    await conn.rollback();
+    console.error('advancedBurst error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    conn.release();
+  }
+};
+
+export { getRoundPool, getAssistantAnalytics, confirmCourse, burstCourse, advancedBurst, verifyAllocation, exportCSV, sendResultEmails, manualArrange, getUnallocated, getSteps, getAbacusSummary  };
