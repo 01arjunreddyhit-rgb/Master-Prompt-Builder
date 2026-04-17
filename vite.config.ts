@@ -19,7 +19,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, "dist/public"),
     emptyOutDir: true,
-    chunkSizeWarningLimit: 3000,
+    chunkSizeWarningLimit: 5000,
     reportCompressedSize: false,
     sourcemap: false,
     minify: 'esbuild',
