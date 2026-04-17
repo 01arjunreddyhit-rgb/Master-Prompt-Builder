@@ -1,0 +1,17 @@
+{
+  "name": "ucos",
+  "version": "1.0.0",
+  "description": "UCOS — Universal Course Opting System",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "start:backend": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "start:frontend": "cd frontend && npm start",
+    "start": "concurrently \"npm run dev:backend\" \"npm run start:frontend\"",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

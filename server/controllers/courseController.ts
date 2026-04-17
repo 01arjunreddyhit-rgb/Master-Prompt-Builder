@@ -1,0 +1,259 @@
+import pool from '../config/db';
+
+const normalizeLibraryKey = ({ course_name = '', subject_code = '' }) =>
+  `${course_name.trim().toLowerCase()}|${subject_code.trim().toUpperCase()}`;
+
+const syncCourseLibraryEntry = async (admin_id, payload) => {
+  const course_name = payload.course_name?.trim();
+  if (!course_name) return;
+
+  const subject_code = payload.subject_code?.trim() || null;
+  const description = payload.description?.trim() || null;
+  const min_enrollment = Number(payload.min_enrollment) || 45;
+  const max_enrollment = Number(payload.max_enrollment) || 75;
+  const classes_per_course = Number(payload.classes_per_course) || 1;
+  const credit_weight = Number(payload.credit_weight || 3.0).toFixed(1);
+  const library_key = normalizeLibraryKey({ course_name, subject_code: subject_code || '' });
+
+  await pool.execute(
+    `INSERT INTO course_library
+      (admin_id, library_key, course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,NOW())
+     ON CONFLICT (admin_id, library_key)
+     DO UPDATE SET
+       course_name = EXCLUDED.course_name,
+       subject_code = EXCLUDED.subject_code,
+       description = EXCLUDED.description,
+       min_enrollment = EXCLUDED.min_enrollment,
+       max_enrollment = EXCLUDED.max_enrollment,
+       classes_per_course = EXCLUDED.classes_per_course,
+       credit_weight = EXCLUDED.credit_weight,
+       updated_at = NOW()`,
+    [admin_id, library_key, course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight]
+  );
+};
+
+const seedCourseLibraryFromHistory = async (admin_id) => {
+  const [historyRows] = await pool.execute(
+    `SELECT DISTINCT ON (LOWER(TRIM(c.course_name)), UPPER(TRIM(COALESCE(c.subject_code, ''))))
+        c.course_name,
+        c.subject_code,
+        c.description,
+        c.min_enrollment,
+        c.max_enrollment,
+        c.classes_per_course,
+        c.credit_weight
+     FROM courses c
+     JOIN elections e ON c.election_id = e.election_id
+     WHERE e.admin_id=?
+     ORDER BY LOWER(TRIM(c.course_name)), UPPER(TRIM(COALESCE(c.subject_code, ''))), c.created_at DESC`,
+    [admin_id]
+  );
+
+  for (const row of historyRows) {
+    await syncCourseLibraryEntry(admin_id, row);
+  }
+};
+
+// ── CREATE COURSE ─────────────────────────────────────────────
+const createCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const {
+      election_id, course_name, subject_code, description,
+      total_seats = 126, min_enrollment, max_enrollment,
+      classes_per_course, credit_weight, library_course_id = null
+    } = req.body;
+    let resolvedCourse = {
+      course_name,
+      subject_code,
+      description,
+      min_enrollment,
+      max_enrollment,
+      classes_per_course,
+      credit_weight,
+    };
+
+    // Verify election belongs to this admin
+    const [elections] = await pool.execute(
+      'SELECT election_id, status FROM elections WHERE election_id=? AND admin_id=?',
+      [election_id, admin_id]
+    );
+    if (!elections.length) return res.status(404).json({ success: false, message: 'Election not found.' });
+    if (elections[0].status === 'STOPPED') {
+      return res.status(400).json({ success: false, message: 'Cannot add courses to a stopped election.' });
+    }
+
+    if (library_course_id) {
+      const [libraryRows] = await pool.execute(
+        `SELECT course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight
+         FROM course_library WHERE library_course_id=? AND admin_id=?`,
+        [library_course_id, admin_id]
+      );
+      if (!libraryRows.length) {
+        return res.status(404).json({ success: false, message: 'Saved course not found.' });
+      }
+      resolvedCourse = {
+        ...libraryRows[0],
+        course_name: course_name ?? libraryRows[0].course_name,
+        subject_code: subject_code ?? libraryRows[0].subject_code,
+        description: description ?? libraryRows[0].description,
+        min_enrollment: min_enrollment ?? libraryRows[0].min_enrollment,
+        max_enrollment: max_enrollment ?? libraryRows[0].max_enrollment,
+        classes_per_course: classes_per_course ?? libraryRows[0].classes_per_course,
+        credit_weight: credit_weight ?? libraryRows[0].credit_weight,
+      };
+    }
+
+    if (!election_id || !resolvedCourse.course_name?.trim()) {
+      return res.status(400).json({ success: false, message: 'election_id and course_name required.' });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO courses
+       (election_id, course_name, subject_code, description, total_seats,
+        min_enrollment, max_enrollment, classes_per_course, credit_weight)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        election_id,
+        resolvedCourse.course_name.trim(),
+        resolvedCourse.subject_code?.trim() || null,
+        resolvedCourse.description?.trim() || null,
+        total_seats,
+        Number(resolvedCourse.min_enrollment) || 45,
+        Number(resolvedCourse.max_enrollment) || 75,
+        Number(resolvedCourse.classes_per_course) || 1,
+        Number(resolvedCourse.credit_weight) || 3.0,
+      ]
+    );
+
+    await syncCourseLibraryEntry(admin_id, resolvedCourse);
+
+    res.status(201).json({ success: true, message: 'Course created.', course_id: result.insertId });
+  } catch (err) {
+    console.error('createCourse error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── GET COURSES ───────────────────────────────────────────────
+const getCourses = async (req, res) => {
+  try {
+    const { election_id } = req.query;
+    if (!election_id) return res.status(400).json({ success: false, message: 'election_id required.' });
+
+    const [rows] = await pool.execute(
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM seats s WHERE s.course_id=c.course_id AND s.is_available=FALSE) as booked_count,
+              (SELECT COUNT(*) FROM student_tokens st WHERE st.course_id=c.course_id AND st.status IN ('BOOKED','CONFIRMED','AUTO')) as token_count
+       FROM courses c
+       WHERE c.election_id=?
+       ORDER BY c.course_name ASC`,
+      [election_id]
+    );
+
+    // Add available seats count
+    const enriched = rows.map(c => ({
+      ...c,
+      available_seats: c.total_seats - (c.booked_count || 0),
+    }));
+
+    res.json({ success: true, data: enriched });
+  } catch (err) {
+    console.error('getCourses error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+const getCourseLibrary = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    await seedCourseLibraryFromHistory(admin_id);
+
+    const [rows] = await pool.execute(
+      `SELECT library_course_id, course_name, subject_code, description, min_enrollment, max_enrollment,
+              classes_per_course, credit_weight, updated_at
+       FROM course_library
+       WHERE admin_id=?
+       ORDER BY updated_at DESC, course_name ASC`,
+      [admin_id]
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('getCourseLibrary error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── UPDATE COURSE ─────────────────────────────────────────────
+const updateCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { course_id } = req.params;
+    const { course_name, subject_code, description, min_enrollment, max_enrollment, is_active } = req.body;
+
+    const [rows] = await pool.execute(
+      `SELECT c.course_id, e.admin_id, c.course_name, c.subject_code, c.description,
+              c.min_enrollment, c.max_enrollment, c.classes_per_course, c.credit_weight
+       FROM courses c
+       JOIN elections e ON c.election_id=e.election_id
+       WHERE c.course_id=? AND e.admin_id=?`,
+      [course_id, admin_id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Course not found.' });
+
+    await pool.execute(
+      `UPDATE courses SET
+         course_name=COALESCE(?,course_name),
+         subject_code=COALESCE(?,subject_code),
+         description=COALESCE(?,description),
+         min_enrollment=COALESCE(?,min_enrollment),
+         max_enrollment=COALESCE(?,max_enrollment),
+         is_active=COALESCE(?,is_active)
+       WHERE course_id=?`,
+      [course_name, subject_code, description, min_enrollment, max_enrollment,
+       is_active !== undefined ? is_active : null, course_id]
+    );
+
+    await syncCourseLibraryEntry(rows[0].admin_id, {
+      course_name: course_name ?? rows[0].course_name,
+      subject_code: subject_code ?? rows[0].subject_code,
+      description: description ?? rows[0].description,
+      min_enrollment: min_enrollment ?? rows[0].min_enrollment,
+      max_enrollment: max_enrollment ?? rows[0].max_enrollment,
+      classes_per_course: rows[0].classes_per_course,
+      credit_weight: rows[0].credit_weight,
+    });
+
+    res.json({ success: true, message: 'Course updated.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── DELETE COURSE ─────────────────────────────────────────────
+const deleteCourse = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { course_id } = req.params;
+
+    const [rows] = await pool.execute(
+      `SELECT c.course_id, e.status FROM courses c
+       JOIN elections e ON c.election_id=e.election_id
+       WHERE c.course_id=? AND e.admin_id=?`,
+      [course_id, admin_id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Course not found.' });
+    if (rows[0].status !== 'NOT_STARTED') {
+      return res.status(400).json({ success: false, message: 'Cannot delete course after election started.' });
+    }
+
+    await pool.execute('DELETE FROM courses WHERE course_id=?', [course_id]);
+    res.json({ success: true, message: 'Course deleted.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+export { createCourse, getCourses, getCourseLibrary, updateCourse, deleteCourse  };
