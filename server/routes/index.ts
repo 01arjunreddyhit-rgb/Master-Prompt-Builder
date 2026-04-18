@@ -97,6 +97,7 @@ router.post('/elections/:election_id/institution-csv', auth, adminOnly, upload.s
 // Q2: Token Burst Control (6 modes)
 router.post('/elections/:election_id/bust',      auth, adminOnly, electionCtrl.bustTokens);
 router.get('/elections/:election_id/bust-history', auth, adminOnly, electionCtrl.getBustHistory);
+router.post('/elections/:election_id/inject-fast', auth, adminOnly, electionCtrl.triggerInjection);
 // Q2: Unified Reasons Repository
 router.get('/reasons',                           auth, adminOnly, electionCtrl.getReasons);
 router.post('/reasons',                          auth, adminOnly, electionCtrl.addReason);

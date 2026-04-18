@@ -841,6 +841,53 @@ const issueTokenBatch = async (election_id: number, batchSize = 30) => {
   } finally {
     conn.release();
   }
+const triggerInjection = async (req, res) => {
+  try {
+    const { election_id } = req.params;
+    
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [students] = await conn.execute(
+        `SELECT student_id FROM students WHERE election_id = ? AND is_approved = TRUE`, [election_id]
+      );
+      const [courses] = await conn.execute(
+        `SELECT course_id FROM courses WHERE election_id = ? AND is_active = TRUE`, [election_id]
+      );
+      
+      let totalBooked = 0;
+      
+      // Instantly inject 756 tokens (126 students * 6 tokens)
+      for (const s of students) {
+        const [tokens] = await conn.execute(
+          "SELECT token_id FROM student_tokens WHERE student_id = ? AND status = 'UNUSED' LIMIT 6",
+          [s.student_id]
+        );
+        
+        for (let i = 0; i < tokens.length; i++) {
+          const c = courses[i % courses.length];
+          const [seats] = await conn.execute('SELECT seat_id FROM seats WHERE election_id=? AND is_available=TRUE LIMIT 1', [election_id]);
+          if (seats.length > 0) {
+            await conn.execute('UPDATE seats SET is_available=FALSE, course_id=?, student_token_id=?, booked_at=NOW() WHERE seat_id=?', [c.course_id, tokens[i].token_id, seats[0].seat_id]);
+            await conn.execute("UPDATE student_tokens SET status='STUDENT', course_id=?, seat_id=? WHERE token_id=?", [c.course_id, seats[0].seat_id, tokens[i].token_id]);
+            totalBooked++;
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ success: true, message: `Successfully injected ${totalBooked} bookings!` });
+    } catch (err) {
+      await conn.rollback();
+      res.status(500).json({ success: false, message: 'Injection failed: ' + err.message });
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 export {
   createElection, copyElection, updateElection, getElections, getElectionStatus, getChecklist, 
   initElection, startElection, pauseElection, resumeElection, stopElection, deleteElection,
@@ -849,5 +896,5 @@ export {
   uploadInstitutionCSV, saveInviteFieldConfig, getPoolCalculation,
   bustTokens, getBustHistory,
   getReasons, addReason, deleteReason, setDefaultReason,
-  issueTokenBatch
+  issueTokenBatch, triggerInjection
 };
