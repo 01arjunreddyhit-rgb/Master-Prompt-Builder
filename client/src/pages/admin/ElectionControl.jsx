@@ -471,7 +471,7 @@ export default function ElectionControl() {
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Election Controls</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {selectedElection.status === 'NOT_STARTED' && (
-                    <button className="btn btn-success btn-full" onClick={() => action('start')} disabled={!checklist?.allReady}>▶ START ELECTION</button>
+                    <button className="btn btn-success btn-full btn-glow" onClick={() => action('start')}>▶ START ELECTION</button>
                   )}
                   {selectedElection.status === 'ACTIVE' && !selectedElection.is_paused && (
                     <>

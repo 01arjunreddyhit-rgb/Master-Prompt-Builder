@@ -728,3 +728,14 @@ td { padding: 11px 15px; vertical-align: middle; color: var(--text-2); }
 .flip-front, .flip-back { backface-visibility: hidden; position: absolute; inset: 0; }
 .flip-back { transform: rotateY(180deg); }
 
+/* Glowing Start Button */
+@keyframes startButtonGlow {
+  0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.8), 0 0 40px rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 1); }
+  100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.4); }
+}
+.btn-glow {
+  animation: startButtonGlow 2s infinite ease-in-out;
+  border: 2px solid var(--emerald);
+}
+
