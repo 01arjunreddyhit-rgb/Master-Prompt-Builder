@@ -221,19 +221,162 @@ const applyViaCode = async (req, res) => {
       return res.status(409).json({ success: false, message: 'You have already applied to this election.', existing: existing[0] });
     }
 
+    // ── Check invite list (Q2: Access Gate identity data) ────────────────
+    const [inviteRows] = await pool.execute(
+      'SELECT * FROM election_email_invites WHERE election_id=? AND email=?',
+      [cav.election_id, student.email.toLowerCase()]
+    );
+    const isInvited = inviteRows.length > 0;
+    const inviteData = isInvited ? inviteRows[0] : null;
+    const metadata = inviteData?.metadata_json || null;
+
+    // Q2: Identity comparison for Access Gate (3-column: Field | Admin Value | Platform Value)
+    const identity_comparison = isInvited ? {
+      platform_id: {
+        field_label: 'Platform ID',
+        admin_value: inviteData?.platform_id_given || null,
+        platform_value: student.full_student_id,
+        is_match: !inviteData?.platform_id_given || inviteData.platform_id_given === student.full_student_id,
+      },
+      username: {
+        field_label: 'Platform Username',
+        admin_value: inviteData?.username_given || null,
+        platform_value: student.register_number,
+        is_match: !inviteData?.username_given || inviteData.username_given === student.register_number,
+      },
+    } : null;
+
+    // Q2: For uninvited — build field_keys from invite_field_config or existing invite metadata
+    let fieldKeys = [];
+    if (!isInvited) {
+      const [elecRows] = await pool.execute('SELECT invite_field_config FROM elections WHERE election_id=?', [cav.election_id]);
+      if (elecRows[0]?.invite_field_config) {
+        try { fieldKeys = JSON.parse(elecRows[0].invite_field_config).map(f => f.key).filter(k => k !== 'email'); } catch {}
+      }
+      if (!fieldKeys.length) {
+        const [anyInvite] = await pool.execute(
+          'SELECT metadata_json FROM election_email_invites WHERE election_id=? AND metadata_json IS NOT NULL LIMIT 1',
+          [cav.election_id]
+        );
+        if (anyInvite.length && anyInvite[0].metadata_json) {
+          try { fieldKeys = Object.keys(JSON.parse(anyInvite[0].metadata_json))
+            .filter(k => !['email','platform_id','full_student_id','username','register_number'].includes(k)); } catch {}
+        }
+      }
+    }
+
     // Insert participant application
     await pool.execute(
-      'INSERT INTO election_participants (election_id, student_id, display_name) VALUES (?, ?, ?)',
-      [cav.election_id, student_id, student.name]
+      'INSERT INTO election_participants (election_id, student_id, display_name, is_invited, metadata_json) VALUES (?, ?, ?, ?, ?)',
+      [cav.election_id, student_id, student.name, isInvited, metadata]
     );
 
     res.status(201).json({
       success: true,
-      message: 'Application submitted. Awaiting admin confirmation.',
+      message: isInvited
+        ? 'Access Gate: You are on the eligible participant list. Please verify your identity details.'
+        : 'Application submitted. You were not on the initial invite list — please complete the supplementary details form.',
       election_id: cav.election_id,
+      is_invited: isInvited,
+      invite_metadata: metadata ? JSON.parse(metadata) : null,
+      field_keys: fieldKeys,
+      identity_comparison,
     });
   } catch (err) {
     console.error('applyViaCode error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Student: Submit uninvited registration form ───────────────
+const submitUninvitedForm = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { election_id, form_data } = req.body;
+    if (!election_id || !form_data) return res.status(400).json({ success: false, message: 'election_id and form_data required.' });
+
+    const [rows] = await pool.execute(
+      'SELECT participant_id, is_invited FROM election_participants WHERE student_id=? AND election_id=?',
+      [student_id, election_id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Application not found.' });
+    if (rows[0].is_invited) return res.status(400).json({ success: false, message: 'Invited students do not need to fill the form.' });
+
+    await pool.execute(
+      'UPDATE election_participants SET metadata_json=? WHERE student_id=? AND election_id=?',
+      [JSON.stringify(form_data), student_id, election_id]
+    );
+    res.json({ success: true, message: 'Registration form submitted. Awaiting admin approval.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Admin: Bulk review participants ──────────────────────────
+const bulkReviewParticipants = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { participant_ids, action } = req.body;
+    if (!Array.isArray(participant_ids) || !participant_ids.length) {
+      return res.status(400).json({ success: false, message: 'participant_ids array required.' });
+    }
+    await conn.beginTransaction();
+    let processed = 0;
+    for (const pid of participant_ids) {
+      const [rows] = await conn.execute(
+        `SELECT ep.*, s.name, s.email, s.student_id
+         FROM election_participants ep
+         JOIN students s ON ep.student_id = s.student_id
+         JOIN elections e ON ep.election_id = e.election_id
+         WHERE ep.participant_id=? AND e.admin_id=? AND ep.status='PENDING'`,
+        [pid, admin_id]
+      );
+      if (!rows.length) continue;
+      const p = rows[0];
+      if (action === 'confirm') {
+        await conn.execute('UPDATE election_participants SET status=?, confirmed_at=NOW() WHERE participant_id=?', ['CONFIRMED', pid]);
+        await conn.execute('UPDATE students SET election_id=? WHERE student_id=? AND (election_id IS NULL OR election_id=?)', [p.election_id, p.student_id, p.election_id]);
+        await conn.execute(
+          `INSERT INTO election_messages (election_id, student_id, message_type, title, body) VALUES (?,?,'CONFIRMATION',?,?)`,
+          [p.election_id, p.student_id, '✅ Access Confirmed!', `Welcome ${p.name}! You have been confirmed for the election.`]
+        );
+      } else {
+        await conn.execute('UPDATE election_participants SET status=? WHERE participant_id=?', ['REJECTED', pid]);
+        await conn.execute(
+          `INSERT INTO election_messages (election_id, student_id, message_type, title, body) VALUES (?,?,'REJECTION',?,?)`,
+          [p.election_id, p.student_id, 'Application Rejected', 'Your access request was not approved.']
+        );
+      }
+      processed++;
+    }
+    await conn.commit();
+    res.json({ success: true, message: `${processed} participant(s) ${action === 'confirm' ? 'confirmed' : 'rejected'}.`, processed });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally { conn.release(); }
+};
+
+// ── Admin: Update participant institutional details ────────────
+const updateParticipantDetails = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { participant_id } = req.params;
+    const { metadata_json, display_name } = req.body;
+    const [rows] = await pool.execute(
+      `SELECT ep.participant_id FROM election_participants ep
+       JOIN elections e ON ep.election_id = e.election_id
+       WHERE ep.participant_id=? AND e.admin_id=?`,
+      [participant_id, admin_id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Participant not found.' });
+    await pool.execute(
+      'UPDATE election_participants SET metadata_json=COALESCE(?,metadata_json), display_name=COALESCE(?,display_name) WHERE participant_id=?',
+      [metadata_json ? JSON.stringify(metadata_json) : null, display_name || null, participant_id]
+    );
+    res.json({ success: true, message: 'Participant details updated.' });
+  } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
@@ -251,11 +394,13 @@ const getParticipants = async (req, res) => {
     if (!elec.length) return res.status(404).json({ success: false, message: 'Election not found.' });
 
     const [rows] = await pool.execute(
-      `SELECT ep.*, s.email, s.name, s.register_number, s.section, s.full_student_id
+      `SELECT ep.*, s.email, s.name, s.register_number, s.section, s.full_student_id,
+              ei.platform_id_given, ei.username_given
        FROM election_participants ep
        JOIN students s ON ep.student_id = s.student_id
+       LEFT JOIN election_email_invites ei ON (ep.election_id = ei.election_id AND s.email = ei.email)
        WHERE ep.election_id=?
-       ORDER BY ep.applied_at ASC`,
+       ORDER BY ep.is_invited DESC, ep.applied_at ASC`,
       [election_id]
     );
 
@@ -430,8 +575,8 @@ const getMyParticipation = async (req, res) => {
 };
 
 export { getOrCreateCAV, regenerateCAV, expireCAV,
-  resolveCode, applyViaCode,
-  getParticipants, reviewParticipant,
+  resolveCode, applyViaCode, submitUninvitedForm,
+  getParticipants, reviewParticipant, bulkReviewParticipants, updateParticipantDetails,
   updateDisplayName,
   getMyMessages, markRead,
   getMyParticipation,

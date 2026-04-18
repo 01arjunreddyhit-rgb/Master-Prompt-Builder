@@ -117,7 +117,7 @@ function VisibilityToggle({ value, onChange, label }) {
   );
 }
 
-/* ── Election form fields ────────────────────────────────────── */
+/* ── Election form fields (Instruction 4: no cap limits at creation) ── */
 function ElectionFormFields({ form, setF, setForm }) {
   const fc = form.field_config || { register_number:'private', section:'public', email:'private' };
   const setFc = (key, val) => setForm(f => ({ ...f, field_config: { ...fc, [key]: val } }));
@@ -139,34 +139,13 @@ function ElectionFormFields({ form, setF, setForm }) {
           <input className="form-input" placeholder="2023–2027" value={form.batch_tag} onChange={setF('batch_tag')} />
         </div>
       </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">Courses / Student</label>
-          <input className="form-input" type="number" min="1" value={form.final_courses_per_student} onChange={setF('final_courses_per_student')} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Faculty Count</label>
-          <input className="form-input" type="number" min="1" value={form.faculty_count} onChange={setF('faculty_count')} />
-        </div>
+      {/* Cap limits removed from creation form — moved to Allocation Panel (Tortoise) */}
+      <div style={{ padding: '10px 14px', background: 'var(--muted-bg)', borderRadius: 10, fontSize: '0.76rem', color: 'var(--text-4)', lineHeight: 1.6, marginBottom: 4 }}>
+        ℹ <strong>Allocation parameters</strong> (min/max class size, faculty count, courses per student) are configured in the <strong>Allocation Panel</strong> after initialisation.
       </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">Min Class Size</label>
-          <input className="form-input" type="number" value={form.min_class_size} onChange={setF('min_class_size')} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Max Class Size</label>
-          <input className="form-input" type="number" value={form.max_class_size} onChange={setF('max_class_size')} />
-        </div>
-      </div>
-
-      <div style={{ marginTop:8, padding:'14px 16px', background:'var(--muted-bg)', borderRadius:14, border:'1px solid var(--border)' }}>
-        <div style={{ fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:4 }}>
-          Join Page — Participant Field Visibility
-        </div>
-        <div style={{ fontSize:'0.74rem', color:'var(--text-4)', marginBottom:12, lineHeight:1.5 }}>
-          Control which fields are visible to other participants on the public join page.
-        </div>
+      <div style={{ marginTop: 12, padding:'14px 16px', background:'var(--muted-bg)', borderRadius:14, border:'1px solid var(--border)' }}>
+        <div style={{ fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:4 }}>Join Page — Participant Field Visibility</div>
+        <div style={{ fontSize:'0.74rem', color:'var(--text-4)', marginBottom:12, lineHeight:1.5 }}>Control which fields are visible to participants on the public join page.</div>
         <VisibilityToggle label="Register Number" value={fc.register_number} onChange={v => setFc('register_number', v)} />
         <VisibilityToggle label="Section"         value={fc.section}         onChange={v => setFc('section', v)} />
         <VisibilityToggle label="Email"           value={fc.email}           onChange={v => setFc('email', v)} />
@@ -175,7 +154,32 @@ function ElectionFormFields({ form, setF, setForm }) {
   );
 }
 
-const BLANK_FORM = { election_name: '', semester_tag: '', batch_tag: '', final_courses_per_student: 2, faculty_count: 4, min_class_size: 45, max_class_size: 75, field_config: { register_number:'private', section:'public', email:'private' } };
+const BLANK_FORM = { election_name: '', semester_tag: '', batch_tag: '', field_config: { register_number:'private', section:'public', email:'private' } };
+
+/* ── Countdown Timer (Instruction 3) ─────────────────────────── */
+function Countdown({ to, label }) {
+  const [diff, setDiff] = useState(null);
+  useEffect(() => {
+    const compute = () => {
+      const ms = new Date(to) - Date.now();
+      if (ms <= 0) { setDiff(null); return; }
+      const s = Math.floor(ms/1000);
+      setDiff({ d: Math.floor(s/86400), h: Math.floor((s%86400)/3600), m: Math.floor((s%3600)/60), s: s%60 });
+    };
+    compute();
+    const iv = setInterval(compute, 1000);
+    return () => clearInterval(iv);
+  }, [to]);
+  if (!diff) return null;
+  return (
+    <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'var(--accent-light)', border:'1px solid var(--accent-3)', borderRadius:10, padding:'6px 14px' }}>
+      <span style={{ fontSize:'0.65rem', color:'var(--accent)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>{label}</span>
+      {[['d', diff.d],['h', diff.h],['m', diff.m],['s', diff.s]].map(([u,v]) => (
+        <span key={u} style={{ fontFamily:'var(--mono)', fontWeight:800, fontSize:'0.9rem', color:'var(--accent)' }}>{String(v).padStart(2,'0')}{u}</span>
+      ))}
+    </div>
+  );
+}
 
 /* ── Main ──────────────────────────────────────────────────── */
 export default function ElectionControl() {
@@ -232,7 +236,148 @@ export default function ElectionControl() {
     } finally { setActionLoading(''); }
   };
 
-  const parseForm = f => ({ ...f, final_courses_per_student: parseInt(f.final_courses_per_student), faculty_count: parseInt(f.faculty_count), min_class_size: parseInt(f.min_class_size), max_class_size: parseInt(f.max_class_size) });
+  const parseForm = f => ({ election_name: f.election_name, semester_tag: f.semester_tag, batch_tag: f.batch_tag, field_config: f.field_config });
+
+  // ── Instruction 3: Schedule state
+  const [schedForm, setSchedForm] = useState({ window_start: '', window_end: '' });
+  const [schedLoading, setSchedLoading] = useState(false);
+  const [showSchedConfirm, setShowSchedConfirm] = useState(false);
+
+  // ── Instruction 4/5: Invitees state
+  const [inviteEmails, setInviteEmails] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [instFile, setInstFile] = useState(null);
+  const [instLoading, setInstLoading] = useState(false);
+  const [instResult, setInstResult] = useState(null);
+  const instRef = React.useRef();
+
+  // ── Instruction 2/4: Universal Pool confirmation state
+  const [poolData, setPoolData] = useState(null);
+  const [showPoolConfirm, setShowPoolConfirm] = useState(false);
+  const [poolConfirmLoading, setPoolConfirmLoading] = useState(false);
+
+  // ── Q2: Token Burst Control state
+  const [showBustControl, setShowBustControl] = useState(false);
+  const [bustReasons, setBustReasons] = useState([]);
+  const [bustHistory, setBustHistory] = useState([]);
+  const [bustForm, setBustForm] = useState({ mode: 4, student_id: '', course_id: '', token_number: '', token_id: '', reason_text: '' });
+  const [bustLoading, setBustLoading] = useState(false);
+
+  // ── Q2: Field Config (Primary Identity Fields)
+  const [fieldConfig, setFieldConfig] = useState([]); // [{ key, label, type }]
+  const [showFieldConfig, setShowFieldConfig] = useState(false);
+
+  const loadBurstData = useCallback(() => {
+    if (!selectedElection) return;
+    api.get('/bust-reasons').then(r => setBustReasons(r.data.data)).catch(() => {});
+    api.get(`/elections/${selectedElection.election_id}/bust-history`).then(r => setBustHistory(r.data.data)).catch(() => {});
+  }, [selectedElection]);
+
+  useEffect(() => {
+    if (selectedElection) loadBurstData();
+  }, [selectedElection, loadBurstData]);
+
+  const handleInit = async () => {
+    if (!selectedElection) return;
+    setMsg(null);
+    // Fetch pool calculation first (Instruction 2 & 4)
+    try {
+      const { data } = await api.get(`/elections/${selectedElection.election_id}/pool-calc`);
+      setPoolData(data);
+      setShowPoolConfirm(true);
+    } catch {
+      // Fallback: init directly if pool-calc fails
+      action('init');
+    }
+  };
+
+  const confirmInit = async () => {
+    setPoolConfirmLoading(true);
+    await action('init');
+    setShowPoolConfirm(false);
+    setPoolConfirmLoading(false);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!schedForm.window_start || !schedForm.window_end) return;
+    setSchedLoading(true); setMsg(null);
+    try {
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/schedule`, schedForm);
+      setMsg({ type: 'success', text: data.message });
+      setShowSchedConfirm(false);
+      loadStatus(selectedElection.election_id);
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Schedule failed.' }); }
+    finally { setSchedLoading(false); }
+  };
+
+  const handleSaveInvitees = async () => {
+    const emails = inviteEmails.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean);
+    if (!emails.length) return;
+    setInviteLoading(true); setMsg(null);
+    try {
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/invitees`, { emails });
+      setMsg({ type: 'success', text: data.message });
+      setInviteEmails('');
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Failed to save invitees.' }); }
+    finally { setInviteLoading(false); }
+  };
+
+  const handleInstCSV = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInstLoading(true); setInstResult(null); setMsg(null);
+    
+    const formData = new FormData(); formData.append('file', file);
+    try {
+      // Step 1: Preview & Pool Calculation (Q2 correction: Pool popup here)
+      const { data: prev } = await api.post(`/elections/${selectedElection.election_id}/institution-csv?preview=true`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      
+      setPoolData(prev.pool_preview);
+      
+      const confirmMsg = `CSV contains ${prev.headers?.length} columns.\n\n` +
+        `Eligible Participants: ${prev.pool_preview.invite_count}\n` +
+        `Universal Seat Pool: ${prev.pool_preview.universal_pool} (${prev.pool_preview.formula})\n\n` +
+        `Upload and confirm this pool setup?`;
+
+      if (window.confirm(confirmMsg)) {
+        // Step 2: Commit
+        const { data: res } = await api.post(`/elections/${selectedElection.election_id}/institution-csv`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setInstResult({ ok: true, msg: res.message, fieldKeys: res.field_keys });
+        setMsg({ type: 'success', text: res.message });
+        
+        // Q2: Show the formal Pool Confirmation Modal after successful upload
+        setPoolData(res.pool_confirmation);
+        setShowPoolConfirm(true);
+      }
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Upload failed.' }); }
+    finally { setInstLoading(false); e.target.value = ''; }
+  };
+
+  const handleBust = async () => {
+    if (!window.confirm('Are you sure? This will invalidate tokens. Bookings already completed will remain (immutable).')) return;
+    setBustLoading(true); setMsg(null);
+    try {
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/bust`, bustForm);
+      setMsg({ type: 'success', text: data.message });
+      loadBurstData();
+      loadStatus(selectedElection.election_id);
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Bust failed.' }); }
+    finally { setBustLoading(false); }
+  };
+
+  const addBurstReason = async (text) => {
+    await api.post('/bust-reasons', { reason_text: text });
+    loadBurstData();
+  };
+
+  const handleAddField = () => setFieldConfig(prev => [...prev, { key: '', label: '', type: 'text' }]);
+  const saveFieldConfig = async () => {
+    try {
+      await api.post(`/elections/${selectedElection.election_id}/invite-field-config`, { fields: fieldConfig });
+      setShowFieldConfig(false);
+      setMsg({ type: 'success', text: 'Field configuration saved.' });
+    } catch { setMsg({ type: 'error', text: 'Failed to save config.' }); }
+  };
 
   const handleCreate = async () => {
     if (!form.election_name.trim()) return setMsg({ type: 'error', text: 'Election name required.' });
@@ -347,7 +492,7 @@ export default function ElectionControl() {
 
                     {(!checklist.checklist.tokens.ok || !checklist.checklist.seats.ok) && checklist.checklist.students.ok && checklist.checklist.courses.ok && (
                       <button className="btn btn-warning btn-full" style={{ marginTop: 18 }}
-                        onClick={() => action('init')} disabled={actionLoading === 'init'}>
+                        onClick={handleInit} disabled={actionLoading === 'init'}>
                         {actionLoading === 'init' ? <Spinner /> : '⚙ Initialise Tokens & Seats'}
                       </button>
                     )}
@@ -367,6 +512,9 @@ export default function ElectionControl() {
                     <>
                       <button className="btn btn-warning btn-full" onClick={() => action('pause')} disabled={!!actionLoading}>⏸ PAUSE</button>
                       <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)} disabled={!!actionLoading}>⏹ STOP</button>
+                      <button className="btn btn-surface btn-full" style={{ borderColor:'#FCA5A5', color:'#DC2626' }} onClick={() => setShowBustControl(true)}>
+                        💥 TOKEN BURST CONTROL
+                      </button>
                     </>
                   )}
                   {selectedElection.status === 'PAUSED' && (
@@ -379,6 +527,71 @@ export default function ElectionControl() {
               </div>
             </div>
           </>
+        )}
+
+        {/* ── INSTRUCTION 3: Schedule Panel ── */}
+        {selectedElection && selectedElection.status === 'NOT_STARTED' && (
+          <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px', boxShadow: 'var(--shadow-sm)', marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 4 }}>⏰ Auto-Schedule Election</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-4)', marginBottom: 16, lineHeight: 1.6 }}>
+              Lock in a start and end time. The system will automatically open and close the election — no manual action needed.
+            </div>
+            {selectedElection.window_start && (
+              <div style={{ marginBottom: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <Countdown to={selectedElection.window_start} label="Opens in" />
+                {selectedElection.window_end && <Countdown to={selectedElection.window_end} label="Closes in" />}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Auto-Start (window opens)</label>
+                <input type="datetime-local" className="form-input" value={schedForm.window_start}
+                  onChange={e => setSchedForm(f => ({ ...f, window_start: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Auto-Stop (window closes)</label>
+                <input type="datetime-local" className="form-input" value={schedForm.window_end}
+                  onChange={e => setSchedForm(f => ({ ...f, window_end: e.target.value }))} />
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowSchedConfirm(true)}
+              disabled={!schedForm.window_start || !schedForm.window_end}>
+              Lock In Schedule
+            </button>
+          </div>
+        )}
+
+        {/* ── INSTRUCTION 4/5: Invitees Panel ── */}
+        {selectedElection && selectedElection.status === 'NOT_STARTED' && (
+          <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px', boxShadow: 'var(--shadow-sm)', marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 4 }}>📧 Eligible Participants (Invitee List)</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-4)', marginBottom: 16, lineHeight: 1.6 }}>
+              Paste eligible student emails below (one per line, or comma-separated). Students on this list get a fast-track verification popup. Students <em>not</em> on this list will fill a dynamic registration form.
+            </div>
+            <textarea className="form-input" rows={5} placeholder="student1@college.edu\nstudent2@college.edu\n..."
+              value={inviteEmails} onChange={e => setInviteEmails(e.target.value)}
+              style={{ fontFamily: 'var(--mono)', fontSize: '0.82rem', marginBottom: 12, resize: 'vertical', width: '100%', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button className="btn btn-primary btn-sm" onClick={handleSaveInvitees} disabled={inviteLoading || !inviteEmails.trim()}>
+                {inviteLoading ? <Spinner /> : 'Save Invitee List'}
+              </button>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-4)' }}>or</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="file" accept=".csv" ref={instRef} onChange={handleInstCSV} style={{ display: 'none' }} />
+                <button className="btn btn-surface btn-sm" onClick={() => instRef.current?.click()} disabled={instLoading}>
+                  {instLoading ? <Spinner /> : '📂 Upload Institution CSV'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowFieldConfig(true)}>
+                  ⊕ Pre-define Fields
+                </button>
+              </div>
+            </div>
+            {instResult?.ok && (
+              <div style={{ marginTop: 10, padding: '8px 14px', background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: '0.76rem', color: '#065F46' }}>
+                ✓ {instResult.msg}{instResult.fieldKeys?.length ? ` — Dynamic form fields: ${instResult.fieldKeys.join(', ')}` : ''}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Create modal */}
@@ -402,6 +615,182 @@ export default function ElectionControl() {
           <Modal title="⏹ Stop Election" onClose={() => setShowStop(false)}
             footer={<><button className="btn btn-ghost btn-sm" onClick={() => setShowStop(false)}>Cancel</button><button className="btn btn-danger" onClick={handleStop}>Yes, Stop Election</button></>}>
             <div className="alert alert-warning"><strong>This cannot be undone.</strong> All bookings will be closed and results locked.</div>
+          </Modal>
+        )}
+
+        {/* ── INSTRUCTION 2/4: Universal Pool Confirmation Popup ── */}
+        {showPoolConfirm && poolData && (
+          <Modal title="⚙ Confirm Initialisation" onClose={() => setShowPoolConfirm(false)}>
+            <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>Universal Seat Pool Formula</div>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 800, color: '#4F46E5', lineHeight: 1 }}>{poolData.student_count}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Students</div>
+                </div>
+                <div style={{ fontSize: '1.5rem', color: 'var(--text-4)', fontWeight: 300 }}>×</div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 800, color: '#059669', lineHeight: 1 }}>{poolData.course_count}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Subjects</div>
+                </div>
+                <div style={{ fontSize: '1.5rem', color: 'var(--text-4)', fontWeight: 300 }}>=</div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 800, color: '#D97706', lineHeight: 1 }}>{poolData.universal_pool}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Total Seats</div>
+                </div>
+              </div>
+              <div style={{ background: 'var(--muted-bg)', borderRadius: 12, padding: '10px 16px', marginBottom: 16, fontSize: '0.82rem', color: 'var(--text-3)' }}>
+                {poolData.formula}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-4)', lineHeight: 1.6 }}>
+                Each student receives <strong>{poolData.tokens_per_student} tokens</strong> — one per subject. Cap limits are applied later in the Allocation Panel.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowPoolConfirm(false)} style={{ flex: 1 }}>Review Setup</button>
+              <button className="btn btn-warning" onClick={confirmInit} disabled={poolConfirmLoading} style={{ flex: 2 }}>
+                {poolConfirmLoading ? <Spinner /> : `Accept & Initialise ${poolData.universal_pool} Seats`}
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {/* ── INSTRUCTION 3: Schedule Lock-In Confirmation ── */}
+        {showSchedConfirm && (
+          <Modal title="🔒 Lock In Schedule" onClose={() => setShowSchedConfirm(false)}>
+            <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+              This schedule is <strong>autonomous</strong>. The election will open and close automatically at the specified times.
+            </div>
+            <div style={{ background: 'var(--muted-bg)', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: 8 }}>
+                <span style={{ color: 'var(--text-4)' }}>Auto-Start</span>
+                <strong>{schedForm.window_start ? new Date(schedForm.window_start).toLocaleString() : '—'}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                <span style={{ color: 'var(--text-4)' }}>Auto-Stop</span>
+                <strong>{schedForm.window_end ? new Date(schedForm.window_end).toLocaleString() : '—'}</strong>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowSchedConfirm(false)} style={{ flex: 1 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveSchedule} disabled={schedLoading} style={{ flex: 2 }}>
+                {schedLoading ? <Spinner /> : 'Confirm Autonomous Schedule'}
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {/* Q2: Field Config Modal */}
+        {showFieldConfig && (
+          <Modal title="Pre-define CSV Fields" onClose={() => setShowFieldConfig(false)}
+            footer={<><button className="btn btn-ghost btn-sm" onClick={() => setShowFieldConfig(false)}>Cancel</button><button className="btn btn-primary" onClick={saveFieldConfig}>Save Configuration</button></>}>
+            <div style={{ fontSize:'0.8rem', color:'var(--text-4)', marginBottom:16 }}>
+              Define the column headers you expect in your Institution CSV. These will become the dynamic form fields for uninvited students.
+            </div>
+            {fieldConfig.map((f, i) => (
+              <div key={i} style={{ display:'flex', gap:8, marginBottom:8 }}>
+                <input className="form-input" placeholder="Column Key (e.g. section)" value={f.key} onChange={e => {
+                  const nc = [...fieldConfig]; nc[i].key = e.target.value.toLowerCase().replace(/\s+/g,'_'); setFieldConfig(nc);
+                }} />
+                <input className="form-input" placeholder="Display Label" value={f.label} onChange={e => {
+                  const nc = [...fieldConfig]; nc[i].label = e.target.value; setFieldConfig(nc);
+                }} />
+                <button className="btn btn-ghost" onClick={() => setFieldConfig(fieldConfig.filter((_, idx) => idx !== i))}>✕</button>
+              </div>
+            ))}
+            <button className="btn btn-surface btn-sm" onClick={handleAddField}>+ Add Field</button>
+          </Modal>
+        )}
+
+        {/* Q2: Token Burst Control Modal */}
+        {showBustControl && (
+          <Modal title="💥 Token Burst Control" onClose={() => setShowBustControl(false)}>
+            <div style={{ marginBottom:16, fontSize:'0.75rem', color:'var(--text-4)', lineHeight:1.5 }}>
+              Invalidate specific tokens or sets of tokens. Bookings already confirmed are <strong>immutable</strong> and will remain in the results.
+            </div>
+            <div className="form-group">
+              <label className="form-label">Burst Mode</label>
+              <select className="form-input" value={bustForm.mode} onChange={e => setBustForm({...bustForm, mode: Number(e.target.value)})}>
+                <option value={1}>1. All seats of a Subject</option>
+                <option value={2}>2. All tokens of a Type (T1, T2...)</option>
+                <option value={3}>3. Type ∩ Subject (Intersection)</option>
+                <option value={4}>4. Participant ∩ All their Tokens</option>
+                <option value={5}>5. Participant ∩ Subject</option>
+                <option value={6}>6. Single Specific Token</option>
+              </select>
+            </div>
+
+            {(bustForm.mode === 4 || bustForm.mode === 5) && (
+              <div className="form-group">
+                <label className="form-label">Target Student ID</label>
+                <input className="form-input" placeholder="Enter student database ID" value={bustForm.student_id} onChange={e => setBustForm({...bustForm, student_id: e.target.value})} />
+              </div>
+            )}
+            {(bustForm.mode === 1 || bustForm.mode === 3 || bustForm.mode === 5) && (
+              <div className="form-group">
+                <label className="form-label">Target Course ID</label>
+                <input className="form-input" placeholder="Enter course database ID" value={bustForm.course_id} onChange={e => setBustForm({...bustForm, course_id: e.target.value})} />
+              </div>
+            )}
+            {(bustForm.mode === 2 || bustForm.mode === 3) && (
+              <div className="form-group">
+                <label className="form-label">Token Number</label>
+                <input className="form-input" type="number" value={bustForm.token_number} onChange={e => setBustForm({...bustForm, token_number: e.target.value})} />
+              </div>
+            )}
+            {bustForm.mode === 6 && (
+              <div className="form-group">
+                <label className="form-label">Specific Token ID</label>
+                <input className="form-input" value={bustForm.token_id} onChange={e => setBustForm({...bustForm, token_id: e.target.value})} />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Burst Reason (Optional)</label>
+              <div style={{ display:'flex', gap:8 }}>
+                <select className="form-input" value={bustForm.reason_text} onChange={e => setBustForm({...bustForm, reason_text: e.target.value})}>
+                  <option value="">-- Select from Repository --</option>
+                  {bustReasons.map(r => <option key={r.reason_id} value={r.reason_text}>{r.reason_text}</option>)}
+                </select>
+                <button className="btn btn-ghost btn-sm" onClick={() => {
+                  const r = window.prompt('Enter custom reason:');
+                  if (r) setBustForm({...bustForm, reason_text: r});
+                }}>⊕ Custom</button>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', gap:10, marginTop:10 }}>
+              <button className="btn btn-danger btn-full" onClick={handleBust} disabled={bustLoading}>
+                {bustLoading ? <Spinner /> : 'EXECUTE BURST'}
+              </button>
+            </div>
+
+            {/* History mini-table */}
+            <div style={{ marginTop:24 }}>
+              <div style={{ fontWeight:700, fontSize:'0.75rem', textTransform:'uppercase', color:'var(--text-4)', marginBottom:8 }}>Recent Bursts</div>
+              <div style={{ maxHeight:150, overflowY:'auto', background:'var(--muted-bg)', borderRadius:8, border:'1px solid var(--border)' }}>
+                {bustHistory.length === 0 ? <div style={{ padding:12, fontSize:'0.75rem', color:'var(--text-4)' }}>No history yet.</div> : (
+                  <table style={{ width:'100%', fontSize:'0.7rem', borderCollapse:'collapse' }}>
+                    <thead style={{ position:'sticky', top:0, background:'var(--muted-bg)', borderBottom:'1px solid var(--border)' }}>
+                      <tr>
+                        <th style={{ textAlign:'left', padding:'6px 10px' }}>Mode</th>
+                        <th style={{ textAlign:'left', padding:'6px 10px' }}>Target</th>
+                        <th style={{ textAlign:'right', padding:'6px 10px' }}>Busted</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bustHistory.map(h => (
+                        <tr key={h.bust_id} style={{ borderBottom:'1px solid var(--border)' }}>
+                          <td style={{ padding:'6px 10px' }}>Mode {h.bust_mode}</td>
+                          <td style={{ padding:'6px 10px' }}>{h.student_name || h.course_name || `Token #${h.target_token_number}`}</td>
+                          <td style={{ padding:'6px 10px', textAlign:'right' }}>{h.tokens_busted}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           </Modal>
         )}
       </main>

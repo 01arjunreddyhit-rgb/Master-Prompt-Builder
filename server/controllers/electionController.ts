@@ -1,6 +1,8 @@
 import pool from '../config/db';
 import { expireCAV } from './cavController';
 import { lockChoiceResults } from './resultController';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
 
 const buildTokenCode = (registerNumber, electionId, tokenNumber) => `A${registerNumber}-E${electionId}-T${tokenNumber}`;
 
@@ -26,9 +28,9 @@ const createElection = async (req, res) => {
     const admin_id = req.user.id;
     const {
       election_name, semester_tag, batch_tag,
-      final_courses_per_student = 2, faculty_count = 4,
-      min_class_size = 45, max_class_size = 75,
       field_config = null,
+      // Allocation params (min/max class, faculty, courses per student) are
+      // intentionally NOT accepted here — configured in Allocation Panel post-init.
     } = req.body;
 
     if (!election_name) return res.status(400).json({ success: false, message: 'election_name required.' });
@@ -43,19 +45,291 @@ const createElection = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO elections
-       (admin_id, election_name, semester_tag, batch_tag, final_courses_per_student,
-        faculty_count, min_class_size, max_class_size, field_config)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+       (admin_id, election_name, semester_tag, batch_tag, field_config)
+       VALUES (?,?,?,?,?)`,
       [admin_id, election_name, semester_tag || null, batch_tag || null,
-       final_courses_per_student, faculty_count, min_class_size, max_class_size,
        field_config ? JSON.stringify(field_config) : null]
     );
 
     const newId = result.insertId;
     await silentGenerateCAV(newId);
-    res.status(201).json({ success: true, message: 'Election created.', election_id: newId });
+
+    // Return full election row so frontend can auto-select it
+    const [rows] = await pool.execute(
+      `SELECT e.*, cav.election_code FROM elections e
+       LEFT JOIN election_cav cav ON cav.election_id = e.election_id
+       WHERE e.election_id=?`, [newId]
+    );
+    res.status(201).json({ success: true, message: 'Election created.', election_id: newId, election: rows[0] || null });
   } catch (err) {
     console.error('createElection error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── COPY ELECTION ─────────────────────────────────────────────
+const copyElection = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { source_election_id } = req.params;
+    const { election_name } = req.body;
+    if (!election_name?.trim()) return res.status(400).json({ success: false, message: 'New election name required.' });
+
+    const [src] = await pool.execute(
+      'SELECT * FROM elections WHERE election_id=? AND admin_id=?',
+      [source_election_id, admin_id]
+    );
+    if (!src.length) return res.status(404).json({ success: false, message: 'Source election not found.' });
+    const s = src[0];
+
+    const [elecs] = await pool.execute('SELECT election_id FROM elections WHERE admin_id=?', [admin_id]);
+    if (elecs.length >= 50) return res.status(400).json({ success: false, message: 'Election limit reached.' });
+
+    const [result] = await pool.execute(
+      `INSERT INTO elections (admin_id, election_name, semester_tag, batch_tag, field_config)
+       VALUES (?,?,?,?,?)`,
+      [admin_id, election_name.trim(), s.semester_tag, s.batch_tag,
+       s.field_config ? (typeof s.field_config === 'string' ? s.field_config : JSON.stringify(s.field_config)) : null]
+    );
+    const newId = result.insertId;
+    await silentGenerateCAV(newId);
+
+    // Copy courses from source
+    const [srcCourses] = await pool.execute(
+      'SELECT * FROM courses WHERE election_id=? AND is_active=TRUE', [source_election_id]
+    );
+    for (const c of srcCourses) {
+      await pool.execute(
+        `INSERT INTO courses (election_id, course_name, subject_code, description, credit_weight)
+         VALUES (?,?,?,?,?)`,
+        [newId, c.course_name, c.subject_code, c.description, c.credit_weight]
+      );
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT e.*, cav.election_code FROM elections e
+       LEFT JOIN election_cav cav ON cav.election_id = e.election_id
+       WHERE e.election_id=?`, [newId]
+    );
+    res.status(201).json({ success: true, message: `Election copied from "${s.election_name}" with ${srcCourses.length} courses.`, election_id: newId, election: rows[0] || null });
+  } catch (err) {
+    console.error('copyElection error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── SCHEDULE ELECTION (set window_start / window_end) ─────────
+const scheduleElection = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const { window_start, window_end } = req.body;
+    if (!window_start || !window_end) return res.status(400).json({ success: false, message: 'Both window_start and window_end are required.' });
+    if (new Date(window_end) <= new Date(window_start)) return res.status(400).json({ success: false, message: 'End time must be after start time.' });
+
+    const [rows] = await pool.execute('SELECT status FROM elections WHERE election_id=? AND admin_id=?', [election_id, admin_id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Election not found.' });
+    if (rows[0].status !== 'NOT_STARTED') return res.status(400).json({ success: false, message: 'Can only schedule a NOT_STARTED election.' });
+
+    await pool.execute(
+      'UPDATE elections SET window_start=?, window_end=?, scheduled_mode=TRUE WHERE election_id=?',
+      [new Date(window_start), new Date(window_end), election_id]
+    );
+    res.json({ success: true, message: 'Schedule saved. Election will auto-start and auto-stop at the specified times.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── GET INVITEES ──────────────────────────────────────────────
+const getInvitees = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const [rows] = await pool.execute(
+      'SELECT * FROM election_email_invites WHERE election_id=? AND admin_id=? ORDER BY created_at ASC',
+      [election_id, admin_id]
+    );
+    res.json({ success: true, data: rows, count: rows.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── SAVE INVITEES (bulk email list) ───────────────────────────
+const saveInvitees = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const { emails } = req.body; // array of email strings
+    if (!Array.isArray(emails)) return res.status(400).json({ success: false, message: 'emails must be an array.' });
+
+    await conn.beginTransaction();
+    let added = 0;
+    for (const raw of emails) {
+      const email = raw.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+      await conn.execute(
+        `INSERT INTO election_email_invites (election_id, admin_id, email, is_invited)
+         VALUES (?,?,?,TRUE)
+         ON CONFLICT ON CONSTRAINT election_email_invites_unique DO NOTHING`,
+        [election_id, admin_id, email]
+      );
+      added++;
+    }
+    await conn.execute('UPDATE elections SET invitee_count=(SELECT COUNT(*) FROM election_email_invites WHERE election_id=?) WHERE election_id=?', [election_id, election_id]);
+    await conn.commit();
+    res.json({ success: true, message: `${added} invitee email(s) saved.`, added });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally { conn.release(); }
+};
+
+// ── UPLOAD INSTITUTION CSV (Q2: Invite List — triggers Pool Calc popup) ────
+const uploadInstitutionCSV = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    if (!req.file) return res.status(400).json({ success: false, message: 'No CSV file uploaded.' });
+
+    const rows = [];
+    let headers = [];
+    const stream = Readable.from(req.file.buffer.toString());
+    await new Promise((resolve, reject) => {
+      stream.pipe(csv())
+        .on('headers', (h) => { headers = h.map(x => x.trim().toLowerCase()); })
+        .on('data', (row) => rows.push(row))
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    if (!headers.includes('email')) {
+      return res.status(400).json({ success: false, message: 'The CSV must include an "email" column.' });
+    }
+
+    // Q2: Schema alignment preview — returned BEFORE committing
+    // Caller uses ?preview=true to get this without writing anything
+    if (req.query.preview === 'true') {
+      const [courses] = await pool.execute(
+        'SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]
+      );
+      const cc = Number(courses[0].cnt);
+      const ic = rows.filter(r => r.email?.trim()).length;
+      return res.json({
+        success: true, preview: true, headers,
+        sample: rows.slice(0, 3),
+        // Q2: Pool preview included in the schema alignment response
+        pool_preview: {
+          invite_count: ic,
+          course_count: cc,
+          universal_pool: ic * cc,
+          tokens_per_student: cc,
+          formula: `${ic} invitees × ${cc} subjects = ${ic * cc} total seats`,
+        },
+      });
+    }
+
+    await conn.beginTransaction();
+    let updated = 0;
+    for (const row of rows) {
+      const email = (row.email || '').trim().toLowerCase();
+      if (!email) continue;
+      // Extract platform_id_given and username_given if admin included them in CSV
+      const platform_id_given = row.platform_id || row.full_student_id || null;
+      const username_given    = row.username || row.register_number || null;
+      const metadata = JSON.stringify(row);
+
+      const [existing] = await conn.execute(
+        'SELECT invite_id FROM election_email_invites WHERE election_id=? AND email=?',
+        [election_id, email]
+      );
+      if (existing.length) {
+        await conn.execute(
+          'UPDATE election_email_invites SET metadata_json=?, platform_id_given=?, username_given=? WHERE election_id=? AND email=?',
+          [metadata, platform_id_given, username_given, election_id, email]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO election_email_invites (election_id, admin_id, email, metadata_json, is_invited, platform_id_given, username_given)
+           VALUES (?,?,?,?,TRUE,?,?)`,
+          [election_id, admin_id, email, metadata, platform_id_given, username_given]
+        );
+      }
+      updated++;
+    }
+
+    await conn.execute(
+      'UPDATE elections SET invitee_count=(SELECT COUNT(*) FROM election_email_invites WHERE election_id=?) WHERE election_id=?',
+      [election_id, election_id]
+    );
+    await conn.commit();
+
+    // Q2: After commit, also return the pool calculation so frontend can show the Pool Confirmation Popup
+    const [courses] = await pool.execute(
+      'SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]
+    );
+    const cc = Number(courses[0].cnt);
+
+    res.json({
+      success: true,
+      message: `Eligible Participant List saved — ${updated} email(s) linked.`,
+      updated,
+      headers,
+      field_keys: headers.filter(h => !['email', 'platform_id', 'full_student_id', 'username', 'register_number'].includes(h)),
+      // Q2: Pool Confirmation data — frontend shows the popup with this
+      pool_confirmation: {
+        invite_count: updated,
+        course_count: cc,
+        universal_pool: updated * cc,
+        tokens_per_student: cc,
+        formula: `${updated} invitees × ${cc} subjects = ${updated * cc} total seats`,
+      },
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('uploadInstitutionCSV error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally { conn.release(); }
+};
+
+// ── SAVE INVITE FIELD CONFIG (admin defines column schema before CSV upload) ──
+const saveInviteFieldConfig = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const { fields } = req.body; // array of { key, label, required, type }
+    if (!Array.isArray(fields)) return res.status(400).json({ success: false, message: 'fields must be an array.' });
+    await pool.execute(
+      'UPDATE elections SET invite_field_config=? WHERE election_id=? AND admin_id=?',
+      [JSON.stringify(fields), election_id, admin_id]
+    );
+    res.json({ success: true, message: 'Field configuration saved.', fields });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── GET POOL CALCULATION (Q2: based on invite_count × courses) ──────────────
+// Note: pool is determined by INVITE LIST count, not enrolled student count
+const getPoolCalculation = async (req, res) => {
+  try {
+    const { election_id } = req.params;
+    const [elec]    = await pool.execute('SELECT invitee_count FROM elections WHERE election_id=?', [election_id]);
+    const [courses] = await pool.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+    const ic = Number(elec[0]?.invitee_count || 0);
+    const cc = Number(courses[0].cnt);
+    res.json({
+      success: true,
+      invite_count: ic,
+      course_count: cc,
+      tokens_per_student: cc,
+      universal_pool: sc * cc,
+      formula: `${sc} students × ${cc} subjects = ${sc * cc} total seats`,
+    });
+  } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
@@ -354,21 +628,104 @@ const getAdminProfile = async (req, res) => {
     const [admin] = await pool.execute('SELECT admin_name, college_name FROM admins WHERE admin_id=?', [admin_id]);
     if (!admin.length) return res.status(404).json({ success: false, message: 'Admin not found.' });
 
-    const [elecs] = await pool.execute(
-      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, cav.election_code
-       FROM elections e
-       JOIN election_cav cav ON e.election_id = cav.election_id
-       WHERE e.admin_id=? AND e.status != 'STOPPED'`,
-      [admin_id]
+// ── Q2: TOKEN BURST CONTROL (6 modes) ────────────────────────
+const bustTokens = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const { mode, student_id, course_id, token_number, token_id, reason_text } = req.body;
+
+    await conn.beginTransaction();
+
+    let query = "UPDATE student_tokens SET is_busted=TRUE WHERE election_id=? AND is_busted=FALSE";
+    const params = [election_id];
+
+    if (mode === 1) { // 1. All seats of a Subject
+      query += " AND course_id=?"; params.push(course_id);
+    } else if (mode === 2) { // 2. All tokens of a Type
+      query += " AND token_number=?"; params.push(token_number);
+    } else if (mode === 3) { // 3. Type ∩ Subject
+      query += " AND token_number=? AND course_id=?"; params.push(token_number, course_id);
+    } else if (mode === 4) { // 4. Participant ∩ All their Tokens
+      query += " AND student_id=?"; params.push(student_id);
+    } else if (mode === 5) { // 5. Participant ∩ Subject
+      query += " AND student_id=? AND course_id=?"; params.push(student_id, course_id);
+    } else if (mode === 6) { // 6. Single Specific Token
+      query += " AND token_id=?"; params.push(token_id);
+    } else {
+      throw new Error('Invalid burst mode.');
+    }
+
+    const [result]: any = await conn.execute(query, params);
+    const bustedCount = result.affectedRows;
+
+    // Log the burst for audit
+    await conn.execute(
+      `INSERT INTO token_busts (election_id, bust_mode, target_student_id, target_course_id, target_token_number, target_token_id, reason_text, tokens_busted)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [election_id, mode, student_id || null, course_id || null, token_number || null, token_id || null, reason_text || null, bustedCount]
     );
-    res.json({ success: true, admin: admin[0], elections: elecs });
+
+    await conn.commit();
+    res.json({ success: true, message: `Burst successful. ${bustedCount} token(s) invalidated.`, tokens_busted: bustedCount });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally { conn.release(); }
+};
+
+const getBustHistory = async (req, res) => {
+  try {
+    const { election_id } = req.params;
+    const [rows] = await pool.execute(
+      `SELECT tb.*, s.name as student_name, c.course_name
+       FROM token_busts tb
+       LEFT JOIN students s ON tb.target_student_id = s.student_id
+       LEFT JOIN courses c ON tb.target_course_id = c.course_id
+       WHERE tb.election_id=? ORDER BY tb.created_at DESC`,
+      [election_id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+// ── Q2: BURST REASON REPOSITORY ───────────────────────────────
+const getBurstReasons = async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM burst_reason_repository ORDER BY is_default DESC, reason_text ASC');
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+const addBurstReason = async (req, res) => {
+  try {
+    const { reason_text, is_default } = req.body;
+    await pool.execute('INSERT INTO burst_reason_repository (reason_text, is_default) VALUES (?,?)', [reason_text, is_default || false]);
+    res.json({ success: true, message: 'Reason added.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+const deleteBurstReason = async (req, res) => {
+  try {
+    await pool.execute('DELETE FROM burst_reason_repository WHERE reason_id=?', [req.params.reason_id]);
+    res.json({ success: true, message: 'Reason deleted.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+const setDefaultBurstReason = async (req, res) => {
+  try {
+    await pool.execute('UPDATE burst_reason_repository SET is_default=FALSE');
+    await pool.execute('UPDATE burst_reason_repository SET is_default=TRUE WHERE reason_id=?', [req.params.reason_id]);
+    res.json({ success: true, message: 'Default set.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
 };
 
 export { 
-  createElection, updateElection, getElections, getElectionStatus, getChecklist, 
+  createElection, copyElection, updateElection, getElections, getElectionStatus, getChecklist, 
   initElection, startElection, pauseElection, resumeElection, stopElection, deleteElection,
-  searchElections, getAdminProfile
+  searchElections, getAdminProfile,
+  scheduleElection, getInvitees, saveInvitees,
+  uploadInstitutionCSV, saveInviteFieldConfig, getPoolCalculation,
+  bustTokens, getBurstReasons, addBurstReason, deleteBurstReason, setDefaultBurstReason, getBustHistory,
 };

@@ -282,10 +282,55 @@ const schemaStatements = [
     is_published BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
+  // Instruction 4/5/6: Email invite list + institution data per election
+  `CREATE TABLE IF NOT EXISTS election_email_invites (
+    invite_id SERIAL PRIMARY KEY,
+    election_id INTEGER NOT NULL,
+    admin_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    metadata_json TEXT,
+    is_invited BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT election_email_invites_unique UNIQUE (election_id, email)
+  )`,
+  // Burst Reason Repository (admin-managed, like Faculty/Course repos)
+  `CREATE TABLE IF NOT EXISTS burst_reason_repository (
+    reason_id SERIAL PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    reason_text TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+  // Token Busts audit log
+  `CREATE TABLE IF NOT EXISTS token_busts (
+    bust_id SERIAL PRIMARY KEY,
+    election_id INTEGER NOT NULL,
+    admin_id TEXT NOT NULL,
+    bust_mode INTEGER NOT NULL,
+    target_student_id INTEGER,
+    target_course_id INTEGER,
+    target_token_number INTEGER,
+    reason_text TEXT,
+    tokens_busted INTEGER DEFAULT 0,
+    seats_removed INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
 ];
 
 const schemaPatchStatements = [
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS scheduled_mode BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS invitee_count INTEGER DEFAULT 0`,
   `ALTER TABLE elections ADD COLUMN IF NOT EXISTS is_paused BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE election_participants ADD COLUMN IF NOT EXISTS metadata_json TEXT`,
+  `ALTER TABLE election_participants ADD COLUMN IF NOT EXISTS is_invited BOOLEAN DEFAULT TRUE`,
+  // Q2: field schema the admin defines before uploading CSV
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS invite_field_config TEXT`,
+  // Q2: admin-provided Platform ID + Username for identity matching
+  `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS platform_id_given TEXT`,
+  `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS username_given TEXT`,
+  // Student tokens: bust tracking
+  `ALTER TABLE student_tokens ADD COLUMN IF NOT EXISTS is_busted BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE student_tokens ADD COLUMN IF NOT EXISTS bust_reason TEXT`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS college_name TEXT`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS otp_code TEXT`,

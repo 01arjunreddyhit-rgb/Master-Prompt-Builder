@@ -1,4 +1,4 @@
-// routes/index.js — all routes consolidated
+// routes/index.ts — all routes consolidated
 import express from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
@@ -6,11 +6,9 @@ import { auth, adminOnly, studentOnly  } from '../middleware/auth';
 
 import * as authCtrl from '../controllers/authController';
 import * as adminCtrl from '../controllers/adminController';
-// (profile + password added below)
 import * as courseCtrl from '../controllers/courseController';
 import * as electionCtrl from '../controllers/electionController';
 import * as studentCtrl from '../controllers/studentController';
-// (changePassword added below)
 import * as allocCtrl from '../controllers/allocationController';
 import * as cavCtrl from '../controllers/cavController';
 import * as resultCtrl from '../controllers/resultController';
@@ -20,7 +18,6 @@ import * as crCtrl from '../controllers/classRoomController';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Rate limiters
 const bookingLimiter = rateLimit({ windowMs: 60000, max: 20, message: { success: false, message: 'Too many booking attempts.' } });
 const authLimiter = rateLimit({ windowMs: 15 * 60000, max: 20, message: { success: false, message: 'Too many attempts.' } });
 
@@ -31,11 +28,6 @@ router.post('/auth/student/register',    authLimiter, authCtrl.studentSelfRegist
 router.post('/auth/student/login',       authLimiter, authCtrl.studentLogin);
 router.post('/auth/verify-otp',          authCtrl.verifyOTP);
 router.post('/auth/resend-otp',          authCtrl.resendOTP);
-
-// Dormant future routes kept intentionally out of the live app:
-// router.post('/auth/invite/start', authLimiter, authCtrl.startInvitedStudentRegistration);
-// router.post('/auth/invite/verify', authCtrl.verifyInvitedStudentOTP);
-// Reason: we are preserving the current student self-registration flow in production.
 
 // ── ADMIN — STUDENTS ──────────────────────────────────────────
 router.get('/admin/pending',             auth, adminOnly, adminCtrl.getPending);
@@ -61,25 +53,24 @@ router.post('/courses/library',          auth, adminOnly, courseCtrl.createLibra
 router.put('/courses/library/:id',       auth, adminOnly, courseCtrl.updateLibraryCourse);
 router.delete('/courses/library/:id',    auth, adminOnly, courseCtrl.deleteLibraryCourse);
 
-// ── CLASS ROOMS & FACULTY ────────────────────────────────────
+// ── FACULTY & CLASS ROOMS ─────────────────────────────────────
 router.get('/faculty',                   auth, adminOnly, facultyCtrl.getFaculty);
 router.post('/faculty',                  auth, adminOnly, facultyCtrl.createFaculty);
 router.put('/faculty/:faculty_id',       auth, adminOnly, facultyCtrl.updateFaculty);
 router.delete('/faculty/:faculty_id',    auth, adminOnly, facultyCtrl.deleteFaculty);
-
 router.get('/class-rooms',               auth, adminOnly, crCtrl.getClassRooms);
 router.post('/class-rooms',              auth, adminOnly, crCtrl.createClassRoom);
 router.put('/class-rooms/:room_id',      auth, adminOnly, crCtrl.updateClassRoom);
 router.delete('/class-rooms/:room_id',   auth, adminOnly, crCtrl.deleteClassRoom);
-
 router.get('/room-tickets',              auth, adminOnly, crCtrl.getRoomTickets);
 router.post('/room-tickets',             auth, adminOnly, crCtrl.createRoomTicket);
 router.delete('/room-tickets/:ticket_id',auth, adminOnly, crCtrl.deleteRoomTicket);
 
 // ── ELECTIONS ─────────────────────────────────────────────────
-router.post('/elections',                        auth, adminOnly, electionCtrl.createElection);
-router.put('/elections/:election_id',            auth, adminOnly, electionCtrl.updateElection);
-router.get('/elections',                         auth, adminOnly, electionCtrl.getElections);
+router.post('/elections',                auth, adminOnly, electionCtrl.createElection);
+router.post('/elections/:source_election_id/copy', auth, adminOnly, electionCtrl.copyElection);
+router.put('/elections/:election_id',    auth, adminOnly, electionCtrl.updateElection);
+router.get('/elections',                 auth, adminOnly, electionCtrl.getElections);
 router.get('/elections/:election_id/status',     auth, electionCtrl.getElectionStatus);
 router.get('/elections/:election_id/checklist',  auth, adminOnly, electionCtrl.getChecklist);
 router.post('/elections/:election_id/init',      auth, adminOnly, electionCtrl.initElection);
@@ -87,7 +78,27 @@ router.post('/elections/:election_id/start',     auth, adminOnly, electionCtrl.s
 router.post('/elections/:election_id/pause',     auth, adminOnly, electionCtrl.pauseElection);
 router.post('/elections/:election_id/resume',    auth, adminOnly, electionCtrl.resumeElection);
 router.post('/elections/:election_id/stop',      auth, adminOnly, electionCtrl.stopElection);
-router.delete('/elections/:election_id',        auth, adminOnly, electionCtrl.deleteElection);
+router.delete('/elections/:election_id',         auth, adminOnly, electionCtrl.deleteElection);
+// Instruction 3: Schedule
+router.post('/elections/:election_id/schedule',  auth, adminOnly, electionCtrl.scheduleElection);
+// Universal pool calculation
+router.get('/elections/:election_id/pool-calc',  auth, adminOnly, electionCtrl.getPoolCalculation);
+// Eligible Participant List (Invite email list)
+router.get('/elections/:election_id/invitees',   auth, adminOnly, electionCtrl.getInvitees);
+router.post('/elections/:election_id/invitees',  auth, adminOnly, electionCtrl.saveInvitees);
+// Q2: Field schema config (admin defines columns before CSV upload)
+router.get('/elections/:election_id/invite-field-config',  auth, adminOnly, electionCtrl.getInvitees); // returns field_keys too
+router.post('/elections/:election_id/invite-field-config', auth, adminOnly, electionCtrl.saveInviteFieldConfig);
+// Q2: Institution CSV (Eligible Participant List upload) — ?preview=true for pool preview first
+router.post('/elections/:election_id/institution-csv', auth, adminOnly, upload.single('file'), electionCtrl.uploadInstitutionCSV);
+// Q2: Token Burst Control (6 modes)
+router.post('/elections/:election_id/bust',      auth, adminOnly, electionCtrl.bustTokens);
+router.get('/elections/:election_id/bust-history', auth, adminOnly, electionCtrl.getBustHistory);
+// Q2: Burst Reason Repository
+router.get('/bust-reasons',                      auth, adminOnly, electionCtrl.getBurstReasons);
+router.post('/bust-reasons',                     auth, adminOnly, electionCtrl.addBurstReason);
+router.delete('/bust-reasons/:reason_id',        auth, adminOnly, electionCtrl.deleteBurstReason);
+router.put('/bust-reasons/:reason_id/default',   auth, adminOnly, electionCtrl.setDefaultBurstReason);
 
 // ── STUDENT ───────────────────────────────────────────────────
 router.get('/student/dashboard',         auth, studentOnly, studentCtrl.getStudentDashboard);
@@ -110,20 +121,19 @@ router.get('/allocation/:election_id/steps',          auth, adminOnly, allocCtrl
 router.get('/allocation/:election_id/abacus',         auth, adminOnly, allocCtrl.getAbacusSummary);
 router.get('/allocation/:election_id/assistant',      auth, adminOnly, allocCtrl.getAssistantAnalytics);
 
-// ── RESULTS (two-store system) ────────────────────────────────
-// Choice results — immutable snapshot locked at election stop
+// ── RESULTS ──────────────────────────────────────────────────
 router.get('/results/:election_id/choices',            auth, adminOnly, resultCtrl.getChoiceResults);
-// Allocation sessions — named, versioned admin work
 router.get('/results/:election_id/sessions',           auth, adminOnly, resultCtrl.getSessions);
 router.post('/results/:election_id/sessions',          auth, adminOnly, resultCtrl.createSession);
-
 router.get('/results/sessions/:session_id',            auth, adminOnly, resultCtrl.getSessionDetail);
 router.post('/results/sessions/:session_id/finalize',  auth, adminOnly, resultCtrl.finalizeSession);
-// ── CAV — public ──────────────────────────────────────────────
+
+// ── CAV — public ─────────────────────────────────────────────
 router.get('/join/:code',                      cavCtrl.resolveCode);
 
 // ── CAV — student ────────────────────────────────────────────
 router.post('/cav/apply',                      auth, studentOnly, cavCtrl.applyViaCode);
+router.post('/cav/form',                       auth, studentOnly, cavCtrl.submitUninvitedForm);
 router.put('/cav/name',                        auth, studentOnly, cavCtrl.updateDisplayName);
 router.get('/cav/participation',               auth, studentOnly, cavCtrl.getMyParticipation);
 router.get('/cav/messages',                    auth, studentOnly, cavCtrl.getMyMessages);
@@ -133,10 +143,13 @@ router.put('/cav/messages/:message_id/read',   auth, studentOnly, cavCtrl.markRe
 router.get('/cav/:election_id',                auth, adminOnly, cavCtrl.getOrCreateCAV);
 router.post('/cav/:election_id/regenerate',    auth, adminOnly, cavCtrl.regenerateCAV);
 router.get('/cav/:election_id/participants',   auth, adminOnly, cavCtrl.getParticipants);
-router.post('/cav/participants/:participant_id/review', auth, adminOnly, cavCtrl.reviewParticipant);
+router.post('/cav/participants/bulk-review',   auth, adminOnly, cavCtrl.bulkReviewParticipants);
+router.post('/cav/participants/:participant_id/review',  auth, adminOnly, cavCtrl.reviewParticipant);
+router.put('/cav/participants/:participant_id/details',  auth, adminOnly, cavCtrl.updateParticipantDetails);
+
+// ── Discovery ────────────────────────────────────────────────
+router.get('/search/elections',           electionCtrl.searchElections);
+router.get('/search/admin/:admin_id',     electionCtrl.getAdminProfile);
+router.get('/admins/:admin_id/profile',   electionCtrl.getAdminProfile);
 
 export default router;
-
-// Discovery
-router.get('/search/elections', electionCtrl.searchElections);
-router.get('/admins/:admin_id/profile', electionCtrl.getAdminProfile);
