@@ -355,6 +355,10 @@ const schemaPatchStatements = [
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS credit_weight DECIMAL(3, 1) DEFAULT 3.0`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
+  `ALTER TABLE courses ADD COLUMN IF NOT EXISTS batch TEXT`,
+  `ALTER TABLE courses ADD COLUMN IF NOT EXISTS semester TEXT`,
+  `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS batch TEXT`,
+  `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS semester TEXT`,
   `ALTER TABLE seats ADD COLUMN IF NOT EXISTS room_ticket_id INTEGER`,
 ];
 
