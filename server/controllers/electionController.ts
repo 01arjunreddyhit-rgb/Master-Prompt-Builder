@@ -510,7 +510,7 @@ const initElection = async (req, res) => {
 // ── START ─────────────────────────────────────────────────────
 const startElection = async (req, res) => {
   try {
-    await pool.execute("UPDATE elections SET status='ACTIVE', window_start=NOW(), is_paused=FALSE WHERE election_id=? AND status='NOT_STARTED'", [req.params.election_id]);
+    await pool.execute("UPDATE elections SET status='ACTIVE', window_start=NOW(), is_paused=FALSE WHERE election_id=?", [req.params.election_id]);
     res.json({ success: true, message: 'Started.' });
   } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
 };
