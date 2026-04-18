@@ -26,6 +26,8 @@ router.post('/auth/admin/register',      authLimiter, authCtrl.adminRegister);
 router.post('/auth/admin/login',         authLimiter, authCtrl.adminLogin);
 router.post('/auth/student/register',    authLimiter, authCtrl.studentSelfRegister);
 router.post('/auth/student/login',       authLimiter, authCtrl.studentLogin);
+router.post('/auth/forgot-password',     authLimiter, authCtrl.forgotPassword);
+router.post('/auth/reset-password',      authLimiter, authCtrl.resetPassword);
 router.post('/auth/verify-otp',          authCtrl.verifyOTP);
 router.post('/auth/resend-otp',          authCtrl.resendOTP);
 
@@ -37,6 +39,7 @@ router.post('/admin/students/upload',    auth, adminOnly, upload.single('file'),
 router.get('/admin/students',            auth, adminOnly, adminCtrl.getStudents);
 router.get('/admin/students/:student_id',auth, adminOnly, adminCtrl.getStudentById);
 router.post('/admin/students/bulk-delete', auth, adminOnly, adminCtrl.bulkDeleteStudents);
+router.post('/admin/students/:student_id/reset-password', auth, adminOnly, adminCtrl.forceResetStudentPassword);
 router.delete('/admin/students/:student_id', auth, adminOnly, adminCtrl.deleteStudent);
 router.put('/admin/profile',  auth, adminOnly, adminCtrl.updateProfile);
 router.put('/admin/password', auth, adminOnly, adminCtrl.changePassword);

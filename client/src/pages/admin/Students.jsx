@@ -325,6 +325,19 @@ export default function AdminStudents() {
     }
   };
 
+  const handleForceReset = async (id, name) => {
+    const newPass = window.prompt(`Enter new password for "${name}":`, 'Junior@123');
+    if (!newPass) return;
+    if (newPass.length < 8) return alert('Password must be at least 8 characters.');
+    
+    try {
+      await api.post(`/admin/students/${id}/reset-password`, { new_password: newPass });
+      alert('Password reset successful! Please share the new password with the student.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Reset failed.');
+    }
+  };
+
   // Section breakdown
   const sectionMap = students.reduce((acc, s) => {
     acc[s.section] = (acc[s.section] || 0) + 1;
@@ -439,7 +452,7 @@ export default function AdminStudents() {
             color: 'var(--navy)', lineHeight: 2,
           }}>
             serial_no, register_number, name, email, section{customFields.length > 0 ? `, ${customFields.join(', ')}` : ''}<br />
-            1, 2301107031, Harikrishna K, hari@college.edu, A{customFields.length > 0 ? customFields.map(() => ', ...').join('') : ''}<br />
+            1, 2301107031, Ranveer S, ranveer@institution.edu, A{customFields.length > 0 ? customFields.map(() => ', ...').join('') : ''}<br />
           </code>
           <p className="text-xs text-muted" style={{ marginTop: 8 }}>
             ℹ <strong>Passwords</strong> are managed by the platform. Admins provide the email/identity list only. 
@@ -516,6 +529,7 @@ export default function AdminStudents() {
                       <td>
                         <div className="flex gap-2">
                           <button className="btn btn-ghost btn-sm" onClick={() => setViewId(s.student_id)}>View</button>
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent)' }} onClick={() => handleForceReset(s.student_id, s.name)}>Reset Pass</button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.student_id, s.name)}>Remove</button>
                         </div>
                       </td>

@@ -618,4 +618,31 @@ const bulkReviewPending = async (req, res) => {
   }
 };
 
-export { getPending, reviewPending, bulkReviewPending, uploadStudentsCSV, getStudents, getStudentById, deleteStudent, bulkDeleteStudents, updateProfile, changePassword  };
+// ── ADMIN: FORCE RESET STUDENT PASSWORD ────────────────────────
+const forceResetStudentPassword = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { student_id } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+    }
+
+    // Verify student belongs to admin
+    const [rows] = await pool.execute(
+      'SELECT student_id FROM students WHERE student_id=? AND admin_id=?',
+      [student_id, admin_id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    await pool.execute('UPDATE students SET password_hash=? WHERE student_id=?', [hash, student_id]);
+
+    res.json({ success: true, message: 'Password reset successfully by administrator.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+export { getPending, reviewPending, bulkReviewPending, uploadStudentsCSV, getStudents, getStudentById, deleteStudent, bulkDeleteStudents, updateProfile, changePassword, forceResetStudentPassword  };

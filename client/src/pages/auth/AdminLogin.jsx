@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { Spinner } from '../../components/ui/index';
+import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 
 export default function AdminLogin() {
   const { login } = useAuth();
@@ -11,6 +12,7 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,6 +54,12 @@ export default function AdminLogin() {
             <input className="form-input" type="password" placeholder="••••••••"
               value={form.password} onChange={set('password')} required />
           </div>
+          <div style={{ textAlign: 'right', marginBottom: 20, marginTop: -10 }}>
+            <button type="button" onClick={() => setShowForgot(true)}
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              Forgot Password?
+            </button>
+          </div>
           <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}>
             {loading ? <Spinner /> : 'Login to Admin Panel'}
           </button>
@@ -64,6 +72,8 @@ export default function AdminLogin() {
           <Link to="/login">Student Login →</Link>
         </div>
       </div>
+
+      {showForgot && <ForgotPasswordModal role="admin" onClose={() => setShowForgot(false)} />}
     </div>
   );
 }

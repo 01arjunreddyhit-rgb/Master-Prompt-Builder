@@ -34,7 +34,7 @@ College elective course selection system using the PWFCFS-MRA (Priority Weighted
 ## Test Accounts
 | Role  | Email | Password | ID |
 |-------|-------|----------|----|
-| Admin | kmharik@gmail.com | (your registration password) | ADM-2026-001 |
+| Admin | ranveer@institution.edu | (your registration password) | ADM-2026-001 |
 | Admin | test@ucos.demo | Admin@1234 | ADM-2026-099 |
 | Student | student@test.demo | Admin@1234 | election_id=1 |
 

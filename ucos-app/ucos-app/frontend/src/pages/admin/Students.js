@@ -197,7 +197,7 @@ export default function AdminStudents() {
             color: 'var(--navy)', lineHeight: 2,
           }}>
             serial_no, register_number, name, email, password, section<br />
-            1, 2301107031, Harikrishna K, hari@college.edu, pass123, A<br />
+            1, 2301107031, Ranveer S, ranveer@institution.edu, pass123, A<br />
             2, 2301107032, Priya S, priya@college.edu, pass456, B
           </code>
           <p className="text-xs text-muted" style={{ marginTop: 8 }}>

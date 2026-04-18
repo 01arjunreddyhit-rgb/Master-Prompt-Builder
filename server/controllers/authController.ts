@@ -428,10 +428,72 @@ const studentLogin = async (req, res) => {
   }
 };
 
+// ── FORGOT PASSWORD (OTP) ─────────────────────────────────────
+const forgotPassword = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const role = normalizeText(req.body.role); // 'admin' or 'student'
+
+    if (!email || !role) return res.status(400).json({ success: false, message: 'Email and role required.' });
+
+    const table = role === 'admin' ? 'admins' : 'students';
+    const [rows] = await pool.execute(`SELECT name, admin_name FROM ${table} WHERE email=?`, [email]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Email not found.' });
+
+    const name = rows[0].name || rows[0].admin_name;
+    const otp = genOTP();
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    await pool.execute(
+      `UPDATE ${table} SET otp_code=?, otp_expires_at=? WHERE email=?`,
+      [otp, expires, email]
+    );
+
+    try { await sendOTP(email, otp, name); } catch(e) {}
+    
+    res.json({ success: true, message: 'Recovery OTP sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── RESET PASSWORD (WITH OTP) ─────────────────────────────────
+const resetPassword = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const role = normalizeText(req.body.role);
+    const otp = normalizeText(req.body.otp);
+    const newPassword = req.body.newPassword;
+
+    if (!email || !otp || !newPassword) return res.status(400).json({ success: false, message: 'All fields required.' });
+    if (newPassword.length < 8) return res.status(400).json({ success: false, message: 'Password too short.' });
+
+    const table = role === 'admin' ? 'admins' : 'students';
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${table} WHERE email=? AND otp_code=? AND otp_expires_at > NOW()`,
+      [email, otp]
+    );
+
+    if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    await pool.execute(
+      `UPDATE ${table} SET password_hash=?, otp_code=NULL, otp_expires_at=NULL WHERE email=?`,
+      [password_hash, email]
+    );
+
+    res.json({ success: true, message: 'Password reset successful. You can now login.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 export { adminRegister,
   verifyOTP,
   resendOTP,
   adminLogin,
   studentSelfRegister,
   studentLogin,
+  forgotPassword,
+  resetPassword,
  };
