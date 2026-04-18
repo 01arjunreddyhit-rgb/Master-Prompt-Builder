@@ -6,23 +6,6 @@ import { AdminSidebar } from '../../components/ui/Sidebar';
 import { Badge, EmptyState, Spinner, Modal, Card, Button, Input, Select, Alert } from '../../components/ui/index';
 import api from '../../services/api';
 
-/* ── Mini seat bar with gradient ─────────────────────────────── */
-function SeatFill({ booked, total }) {
-  const pct = total > 0 ? (booked / total) * 100 : 0;
-  const isHigh = pct > 90;
-  return (
-    <div style={{ width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', marginBottom: 5, fontWeight: 700 }}>
-        <span style={{ color: 'var(--text-4)' }}>SEATS BOOKED</span>
-        <span style={{ color: isHigh ? '#DC2626' : 'var(--accent)' }}>{booked} / {total}</span>
-      </div>
-      <div style={{ height: 6, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
-        <div style={{ width: `${pct}%`, background: isHigh ? '#DC2626' : 'var(--accent)', transition: 'width 0.6s ease' }} />
-      </div>
-    </div>
-  );
-}
-
 /* ── Main ──────────────────────────────────────────────────── */
 export default function AdminCourses() {
   const { user } = useAuth();
@@ -115,6 +98,17 @@ export default function AdminCourses() {
     } catch (err) {}
   };
 
+  const handleDelete = async (course_id) => {
+    if (!window.confirm('Are you sure you want to remove this course from the election?')) return;
+    try {
+      await api.delete(`/courses/${course_id}`);
+      setMsg({ type: 'success', text: 'Course removed.' });
+      load();
+    } catch (err) {
+      setMsg({ type: 'error', text: err.response?.data?.message || 'Delete failed.' });
+    }
+  };
+
   return (
     <div className="app-shell">
       <AdminSidebar />
@@ -155,7 +149,7 @@ export default function AdminCourses() {
                     <code style={{ fontSize: '0.7rem', background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4 }}>{c.subject_code}</code>
                   </div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>{c.course_name}</h3>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-4)', display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-4)', display: 'flex', gap: 8, marginBottom: 24 }}>
                     <span>{c.batch || 'All Batches'}</span>
                     <span>·</span>
                     <span>Sem {c.semester || 'N/A'}</span>
@@ -163,13 +157,10 @@ export default function AdminCourses() {
                     <span>{c.credit_weight} Credits</span>
                   </div>
                   
-                  <div style={{ marginBottom: 24 }}>
-                    <SeatFill booked={c.token_count || 0} total={selectedElection?.invite_count || 126} />
-                  </div>
-
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Button variant="surface" size="sm" style={{ flex: 1 }} onClick={() => { setEditCourse(c); setForm(c); setShowModal(true); }}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => toggleActive(c)}>{c.is_active ? 'Hide' : 'Show'}</Button>
+                    <Button variant="ghost" size="sm" style={{ color: 'var(--red)' }} onClick={() => handleDelete(c.course_id)}>Remove</Button>
                   </div>
                 </Card>
               ))}
