@@ -27,10 +27,18 @@ const schemaStatements = [
     window_start TIMESTAMP,
     window_end TIMESTAMP,
     status TEXT DEFAULT 'NOT_STARTED',
+    stop_reason_text TEXT,
     current_round INTEGER DEFAULT 0,
     field_config JSON,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS stop_reason_repository (
+    reason_id SERIAL PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    reason_name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS students (
     student_id SERIAL PRIMARY KEY,
@@ -360,6 +368,7 @@ const schemaPatchStatements = [
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS semester TEXT`,
   `ALTER TABLE courses DROP COLUMN IF EXISTS total_seats`,
   `ALTER TABLE course_library DROP COLUMN IF EXISTS total_seats`,
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS stop_reason_text TEXT`,
   `ALTER TABLE seats ADD COLUMN IF NOT EXISTS room_ticket_id INTEGER`,
 ];
 

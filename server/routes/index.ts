@@ -100,6 +100,11 @@ router.post('/bust-reasons',                     auth, adminOnly, electionCtrl.a
 router.delete('/bust-reasons/:reason_id',        auth, adminOnly, electionCtrl.deleteBurstReason);
 router.put('/bust-reasons/:reason_id/default',   auth, adminOnly, electionCtrl.setDefaultBurstReason);
 
+// Q2: Stop Reason Repository
+router.get('/stop-reasons',                      auth, adminOnly, electionCtrl.getStopReasons);
+router.post('/stop-reasons',                     auth, adminOnly, electionCtrl.addStopReason);
+router.delete('/stop-reasons/:reason_id',        auth, adminOnly, electionCtrl.deleteStopReason);
+
 // ── STUDENT ───────────────────────────────────────────────────
 router.get('/student/dashboard',         auth, studentOnly, studentCtrl.getStudentDashboard);
 router.get('/student/bookings',          auth, studentOnly, studentCtrl.getStudentBookings);

@@ -505,6 +505,7 @@ const stopElection = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const { election_id } = req.params;
+    const { stop_reason_text } = req.body;
     await conn.beginTransaction();
 
     const [active] = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE AND is_burst=FALSE', [election_id]);
@@ -524,7 +525,7 @@ const stopElection = async (req, res) => {
       }
     }
 
-    await conn.execute("UPDATE elections SET status='STOPPED', window_end=NOW(), is_paused=FALSE WHERE election_id=?", [election_id]);
+    await conn.execute("UPDATE elections SET status='STOPPED', window_end=NOW(), is_paused=FALSE, stop_reason_text=? WHERE election_id=?", [stop_reason_text || null, election_id]);
     await conn.commit();
     expireCAV(election_id).catch(()=>{});
     lockChoiceResults(election_id).catch(()=>{});
@@ -734,6 +735,30 @@ const setDefaultBurstReason = async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
 };
 
+// ── Q2: STOP REASON REPOSITORY ───────────────────────────────
+const getStopReasons = async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM stop_reason_repository ORDER BY reason_name ASC');
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+const addStopReason = async (req, res) => {
+  try {
+    const admin_id = req.user.id;
+    const { reason_name, description } = req.body;
+    await pool.execute('INSERT INTO stop_reason_repository (admin_id, reason_name, description) VALUES (?,?,?)', [admin_id, reason_name, description]);
+    res.json({ success: true, message: 'Reason added.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
+const deleteStopReason = async (req, res) => {
+  try {
+    await pool.execute('DELETE FROM stop_reason_repository WHERE reason_id=?', [req.params.reason_id]);
+    res.json({ success: true, message: 'Reason deleted.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error.' }); }
+};
+
 export { 
   createElection, copyElection, updateElection, getElections, getElectionStatus, getChecklist, 
   initElection, startElection, pauseElection, resumeElection, stopElection, deleteElection,
@@ -741,4 +766,5 @@ export {
   scheduleElection, getInvitees, saveInvitees,
   uploadInstitutionCSV, saveInviteFieldConfig, getPoolCalculation,
   bustTokens, getBurstReasons, addBurstReason, deleteBurstReason, setDefaultBurstReason, getBustHistory,
+  getStopReasons, addStopReason, deleteStopReason
 };
