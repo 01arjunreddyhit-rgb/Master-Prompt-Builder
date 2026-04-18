@@ -13,23 +13,28 @@ import pool from './server/config/db.ts';
  * It allocates 6 subjects for 1 student every 5 seconds.
  */
 async function runInjection() {
-  const electionId = 1; // Assuming election ID 1. Change if needed.
+  let electionId = 1; 
+  const LIMIT = 63; // Set this to 63 to inject exactly half of the 126 students
 
-  console.log(`Starting simulated injection for Election ID: ${electionId}`);
-  
   try {
+    // Auto-detect latest election if needed
+    const [elections] = await pool.execute('SELECT election_id, title FROM elections ORDER BY created_at DESC LIMIT 1');
+    if (elections.length > 0) electionId = elections[0].election_id;
+
+    console.log(`Starting simulated injection for Election: ${elections[0]?.title} (ID: ${electionId})`);
+    
     // 1. Get the list of approved students for this election
     const [students] = await pool.execute(
-      'SELECT student_id, register_number FROM students WHERE election_id = ? AND is_approved = TRUE',
-      [electionId]
+      'SELECT student_id, register_number FROM students WHERE election_id = ? AND is_approved = TRUE LIMIT ?',
+      [electionId, LIMIT]
     );
 
     if (students.length === 0) {
-      console.error('No students found. Make sure the election is initialized.');
+      console.error('No students found. Make sure the election is initialized and students are approved.');
       process.exit(1);
     }
 
-    console.log(`Found ${students.length} students. Will inject 6 tokens (1 student) every 5 seconds.`);
+    console.log(`Found ${students.length} students (Limited to ${LIMIT}). Will inject 6 tokens per student.`);
 
     // 2. Get active courses
     const [courses] = await pool.execute(

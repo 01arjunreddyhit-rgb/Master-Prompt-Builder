@@ -424,19 +424,23 @@ const getChecklist = async (req, res) => {
     const [courses] = await pool.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
     const [tokens] = await pool.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?', [election_id]);
     const [seats] = await pool.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=?', [election_id]);
+    const [usedT] = await pool.execute("SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=? AND status != 'UNUSED'", [election_id]);
+    const [filledS] = await pool.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=? AND is_available=FALSE', [election_id]);
 
     const sc = Number(students[0].cnt);
     const cc = Number(courses[0].cnt);
     const tc = Number(tokens[0].cnt);
     const st = Number(seats[0].cnt);
+    const ut = Number(usedT[0].cnt);
+    const fs = Number(filledS[0].cnt);
     const ec = elections[0];
     const slotCap = ec.universal_slot_cap || 10000;
 
     const checklist = {
-      students: { ok: true, count: sc, label: 'Gate 1: Student Database (Enrolled)' },
-      courses:  { ok: cc > 0, count: cc, label: 'Gate 2: Active Subjects' },
-      tokens:   { ok: tc >= (sc * cc) && sc > 0, count: tc, expected: sc * cc, label: 'Gate 3: Tokens Issued (Enrolled)' },
-      seats:    { ok: st >= slotCap, count: st, expected: slotCap, label: 'Gate 4: Universal Slot Pool' },
+      students: { ok: true, count: sc, label: 'Enrolled Students' },
+      courses:  { ok: cc > 0, count: cc, label: 'Active Subjects' },
+      tokens:   { ok: tc >= (sc * cc) && sc > 0, count: ut, total: tc, expected: sc * cc, label: 'Tokens Used' },
+      seats:    { ok: st >= slotCap, count: fs, total: st, expected: slotCap, label: 'Universal Slots Filled' },
     };
 
     res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: ec });

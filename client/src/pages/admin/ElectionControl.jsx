@@ -197,6 +197,19 @@ export default function ElectionControl() {
   const [activeTab, setActiveTab] = useState('setup');
   const [timerStart, setTimerStart] = useState('');
   const [timerEnd, setTimerEnd] = useState('');
+  const [schedLoading, setSchedLoading] = useState(false);
+
+  const handleInit = async () => {
+    if (!selectedElection) return;
+    setActionLoading('init'); setMsg(null);
+    try {
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/init`);
+      setMsg({ type: 'success', text: data.message });
+      loadStatus(selectedElection.election_id);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.response?.data?.message || 'Initialisation failed.' });
+    } finally { setActionLoading(''); }
+  };
 
   const loadStatus = useCallback((id) => {
     if (!id) return;
@@ -480,8 +493,8 @@ export default function ElectionControl() {
                     <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16, color: 'var(--text-3)' }}>Decoupled Resource Tracking</div>
                     {checklist ? (
                       <>
-                        <CheckItem ok={checklist.checklist.tokens.ok} label="Tokens Generated" count={checklist.checklist.tokens.count} expected={checklist.checklist.tokens.expected} />
-                        <CheckItem ok={checklist.checklist.seats.ok} label="Universal Slots Available" count={checklist.checklist.seats.count} expected={checklist.checklist.seats.expected} />
+                        <CheckItem ok={checklist.checklist.tokens.ok} label="Tokens Used" count={checklist.checklist.tokens.count} expected={checklist.checklist.tokens.total} />
+                        <CheckItem ok={checklist.checklist.seats.ok} label="Universal Slots Filled" count={checklist.checklist.seats.count} expected={checklist.checklist.seats.total} />
                         <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--muted-bg)', borderRadius: 12, border: '1px solid var(--border)' }}>
                            <div style={{ fontSize: '0.75rem', color: 'var(--text-4)', marginBottom: 8 }}>Manually regenerate decoupled resources if needed:</div>
                            <button className="btn btn-navy btn-sm btn-full" onClick={handleInit}>⚡ Re-Initialise Pool</button>
