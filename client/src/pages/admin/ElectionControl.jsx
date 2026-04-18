@@ -193,6 +193,10 @@ export default function ElectionControl() {
   const [msg, setMsg]             = useState(null);
   const [form, setFormState]      = useState(BLANK_FORM);
   const setF = k => e => setFormState(f => ({ ...f, [k]: e.target.value }));
+  
+  const [activeTab, setActiveTab] = useState('setup');
+  const [timerStart, setTimerStart] = useState('');
+  const [timerEnd, setTimerEnd] = useState('');
 
   const loadStatus = useCallback((id) => {
     if (!id) return;
@@ -311,12 +315,11 @@ export default function ElectionControl() {
   };
 
   const handleSaveSchedule = async () => {
-    if (!schedForm.window_start || !schedForm.window_end) return;
+    if (!timerStart || !timerEnd) return;
     setSchedLoading(true); setMsg(null);
     try {
-      const { data } = await api.post(`/elections/${selectedElection.election_id}/schedule`, schedForm);
+      const { data } = await api.post(`/elections/${selectedElection.election_id}/schedule`, { window_start: timerStart, window_end: timerEnd });
       setMsg({ type: 'success', text: data.message });
-      setShowSchedConfirm(false);
       loadStatus(selectedElection.election_id);
     } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Schedule failed.' }); }
     finally { setSchedLoading(false); }
@@ -451,43 +454,99 @@ export default function ElectionControl() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-              <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Pre-Start Checklist</div>
-                {checklist ? (
-                  <>
-                    <CheckItem ok={checklist.checklist.students.ok} label="Students registered" count={checklist.checklist.students.count} />
-                    <CheckItem ok={checklist.checklist.courses.ok} label="Courses created" count={checklist.checklist.courses.count} />
-                    <CheckItem ok={checklist.checklist.tokens.ok} label="Tokens generated" count={checklist.checklist.tokens.count} expected={checklist.checklist.tokens.expected} />
-                    <CheckItem ok={checklist.checklist.seats.ok} label="Seats initialised" count={checklist.checklist.seats.count} expected={checklist.checklist.seats.expected} />
-                    {(!checklist.checklist.tokens.ok || !checklist.checklist.seats.ok) && (
-                      <button className="btn btn-warning btn-full" style={{ marginTop: 18 }} onClick={handleInit}>⚙ Initialise Tokens & Seats</button>
-                    )}
-                  </>
-                ) : <Spinner dark />}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 24, marginBottom: 20 }}>
+              {/* Left Column: Tabbed Info */}
+              <div className="card" style={{ padding: 26 }}>
+                <div className="tab-nav">
+                  <button className={`tab-btn ${activeTab === 'setup' ? 'active' : ''}`} onClick={() => setActiveTab('setup')}>⚙️ Setup Checklist</button>
+                  <button className={`tab-btn ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>📦 Universal Inventory</button>
+                </div>
+                
+                {activeTab === 'setup' ? (
+                  <div className="animate-in">
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16, color: 'var(--text-3)' }}>Phase 1 & 2 Readiness</div>
+                    {checklist ? (
+                      <>
+                        <CheckItem ok={checklist.checklist.students.ok} label="Students registered" count={checklist.checklist.students.count} />
+                        <CheckItem ok={checklist.checklist.courses.ok} label="Courses created" count={checklist.checklist.courses.count} />
+                        <div style={{ marginTop: 24, padding: '14px 16px', background: 'var(--accent-light)', borderRadius: 12, border: '1px dotted var(--accent-3)', fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 600 }}>
+                          ℹ️ These two factors are the only requirements for activation. Resource allocation is handled dynamically.
+                        </div>
+                      </>
+                    ) : <Spinner dark />}
+                  </div>
+                ) : (
+                  <div className="animate-in">
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16, color: 'var(--text-3)' }}>Decoupled Resource Tracking</div>
+                    {checklist ? (
+                      <>
+                        <CheckItem ok={checklist.checklist.tokens.ok} label="Tokens Generated" count={checklist.checklist.tokens.count} expected={checklist.checklist.tokens.expected} />
+                        <CheckItem ok={checklist.checklist.seats.ok} label="Universal Slots Available" count={checklist.checklist.seats.count} expected={checklist.checklist.seats.expected} />
+                        <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--muted-bg)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                           <div style={{ fontSize: '0.75rem', color: 'var(--text-4)', marginBottom: 8 }}>Manually regenerate decoupled resources if needed:</div>
+                           <button className="btn btn-navy btn-sm btn-full" onClick={handleInit}>⚡ Re-Initialise Pool</button>
+                        </div>
+                      </>
+                    ) : <Spinner dark />}
+                  </div>
+                )}
               </div>
 
-              <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Election Controls</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {selectedElection.status === 'NOT_STARTED' && (
-                    <button className="btn btn-success btn-full btn-glow" onClick={() => action('start')}>▶ START ELECTION</button>
+              {/* Right Column: Timer & Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Timer Card */}
+                <div className="timer-card animate-in">
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                    <div style={{ fontSize:'0.65rem', fontWeight:800, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'1.5px' }}>Election Timer</div>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:selectedElection.status==='ACTIVE'?'#10B981':'rgba(255,255,255,0.2)' }} />
+                  </div>
+                  
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+                    <div>
+                      <label style={{ display:'block', fontSize:'0.6rem', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', fontWeight:700, marginBottom:4 }}>Start Time</label>
+                      <input type="datetime-local" className="timer-input w-full" value={timerStart} onChange={e => setTimerStart(e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={{ display:'block', fontSize:'0.6rem', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', fontWeight:700, marginBottom:4 }}>End Time</label>
+                      <input type="datetime-local" className="timer-input w-full" value={timerEnd} onChange={e => setTimerEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  
+                  <button className="btn btn-primary btn-sm btn-full" onClick={() => handleSaveSchedule()} disabled={schedLoading}>
+                     {schedLoading ? <Spinner /> : '📅 Set Start/End Timer'}
+                  </button>
+                  
+                  {(selectedElection.window_start || selectedElection.window_end) && (
+                    <div style={{ marginTop: 14, textAlign: 'center' }}>
+                      <Countdown to={selectedElection.window_end} label="Active Window" />
+                    </div>
                   )}
-                  {selectedElection.status === 'ACTIVE' && !selectedElection.is_paused && (
-                    <>
-                      <button className="btn btn-warning btn-full" onClick={() => action('pause')}>⏸ PAUSE</button>
-                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
-                      <button className="btn btn-surface btn-full" style={{ color:'#DC2626' }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
-                    </>
-                  )}
-                  {selectedElection.status === 'ACTIVE' && selectedElection.is_paused && (
-                    <>
-                      <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
-                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
-                      <button className="btn btn-surface btn-full" style={{ color:'#DC2626' }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
-                    </>
-                  )}
-                  {selectedElection.status === 'STOPPED' && <Button variant="primary" onClick={() => navigate('/admin/results')}>View Results →</Button>}
+                </div>
+
+                {/* Controls Card */}
+                <div className="card animate-in" style={{ borderTop: '4px solid var(--accent)' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Control Center</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {selectedElection.status === 'NOT_STARTED' && (
+                      <button className="btn btn-success btn-full btn-glow" onClick={() => action('start')}>▶ START ELECTION</button>
+                    )}
+                    {selectedElection.status === 'ACTIVE' && !selectedElection.is_paused && (
+                      <>
+                        <button className="btn btn-warning btn-full" onClick={() => action('pause')}>⏸ PAUSE</button>
+                        <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
+                      </>
+                    )}
+                    {selectedElection.status === 'ACTIVE' && selectedElection.is_paused && (
+                      <>
+                        <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
+                        <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
+                      </>
+                    )}
+                    {selectedElection.status === 'ACTIVE' && (
+                       <button className="btn btn-surface btn-full" style={{ color:'#DC2626', marginTop: 5 }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
+                    )}
+                    {selectedElection.status === 'STOPPED' && <Button variant="primary" onClick={() => navigate('/admin/results')}>View Results →</Button>}
+                  </div>
                 </div>
               </div>
             </div>

@@ -509,10 +509,50 @@ const initElection = async (req, res) => {
 };
 // ── START ─────────────────────────────────────────────────────
 const startElection = async (req, res) => {
+  const conn = await pool.getConnection();
   try {
-    await pool.execute("UPDATE elections SET status='ACTIVE', window_start=NOW(), is_paused=FALSE WHERE election_id=?", [req.params.election_id]);
-    res.json({ success: true, message: 'Started.' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
+    const { election_id } = req.params;
+    await conn.beginTransaction();
+
+    // Check if seats are initialised
+    const [seats] = await conn.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=?', [election_id]);
+    if (Number(seats[0].cnt) === 0) {
+      // Auto-init logic (copy of initElection core)
+      const [students] = await conn.execute('SELECT student_id FROM students WHERE election_id=? AND is_approved=TRUE', [election_id]);
+      const [courses] = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+      
+      if (students.length > 0 && courses.length > 0) {
+        const SLOT_CAP = 10000;
+        const batchSize = 1000;
+        for (let i = 1; i <= SLOT_CAP; i += batchSize) {
+          const placeholders = [];
+          const values = [];
+          const end = Math.min(i + batchSize - 1, SLOT_CAP);
+          for (let j = i; j <= end; j++) {
+            placeholders.push('(?, ?, ?, TRUE)');
+            values.push(j, `SLOT-${String(j).padStart(5, '0')}`, election_id);
+          }
+          await conn.execute(`INSERT INTO seats (seat_number, seat_code, election_id, is_available) VALUES ${placeholders.join(',')}`, values);
+        }
+        for (const s of students) {
+          for (let t = 1; t <= courses.length; t++) {
+            await conn.execute('INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)', 
+              [s.student_id, election_id, t, `A${s.student_id}-E${election_id}-T${t}`]);
+          }
+        }
+        await conn.execute('UPDATE elections SET universal_slot_cap=? WHERE election_id=?', [SLOT_CAP, election_id]);
+      }
+    }
+
+    await conn.execute("UPDATE elections SET status='ACTIVE', window_start=NOW(), is_paused=FALSE WHERE election_id=?", [election_id]);
+    await conn.commit();
+    res.json({ success: true, message: 'Election started successfully (auto-initialised if needed).' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Start failed: ' + err.message });
+  } finally {
+    conn.release();
+  }
 };
 
 // ── PAUSE ─────────────────────────────────────────────────────
