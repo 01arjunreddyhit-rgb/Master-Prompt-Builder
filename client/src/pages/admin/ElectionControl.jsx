@@ -527,32 +527,44 @@ export default function ElectionControl() {
                 <div className="card animate-in" style={{ borderTop: '4px solid var(--accent)' }}>
                   <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Control Center</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {selectedElection.status === 'NOT_STARTED' && (
-                      <button className="btn btn-success btn-full btn-glow" onClick={() => action('start')}>▶ START ELECTION</button>
-                    )}
-                    {selectedElection.status === 'ACTIVE' && !selectedElection.is_paused && (
-                      <>
-                        <button className="btn btn-warning btn-full" onClick={() => action('pause')}>⏸ PAUSE</button>
-                        <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
-                      </>
-                    )}
-                    {selectedElection.status === 'ACTIVE' && selectedElection.is_paused && (
-                      <>
-                        <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
-                        <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
-                      </>
-                    )}
-                    {selectedElection.status === 'ACTIVE' && (
-                       <>
-                         {selectedElection.is_frozen ? (
-                            <button className="btn btn-primary btn-full" style={{ background: '#4F46E5' }} onClick={() => action('unfreeze')}>❄️ UNFREEZE TOKENS</button>
-                         ) : (
-                            <button className="btn btn-navy btn-full" style={{ background: '#1E293B' }} onClick={() => action('freeze')}>🧊 FREEZE TOKENS</button>
-                         )}
-                         <button className="btn btn-surface btn-full" style={{ color:'#DC2626', marginTop: 5 }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
-                       </>
-                    )}
-                    {selectedElection.status === 'STOPPED' && <Button variant="primary" onClick={() => navigate('/admin/results')}>View Results →</Button>}
+                    {(() => {
+                      const cur = status || selectedElection;
+                      if (!cur) return <Spinner />;
+
+                      return (
+                        <>
+                          {cur.status === 'NOT_STARTED' && (
+                            <button className="btn btn-success btn-full btn-glow" onClick={() => action('start')}>▶ START ELECTION</button>
+                          )}
+                          {cur.status === 'ACTIVE' && !cur.is_paused && (
+                            <>
+                              <button className="btn btn-warning btn-full" onClick={() => action('pause')}>⏸ PAUSE</button>
+                              <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
+                            </>
+                          )}
+                          {cur.status === 'ACTIVE' && cur.is_paused && (
+                            <>
+                              <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
+                              <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
+                            </>
+                          )}
+                          {cur.status === 'ACTIVE' && (
+                            <>
+                              <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
+                              {cur.is_frozen ? (
+                                <button className="btn btn-primary btn-full" style={{ background: '#4F46E5' }} onClick={() => action('unfreeze')}>❄️ UNFREEZE TOKENS</button>
+                              ) : (
+                                <button className="btn btn-navy btn-full" style={{ background: '#1E293B' }} onClick={() => action('freeze')}>🧊 FREEZE TOKENS</button>
+                              )}
+                              <button className="btn btn-surface btn-full" style={{ color:'#DC2626', marginTop: 5 }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
+                            </>
+                          )}
+                          {cur.status === 'STOPPED' && (
+                            <button className="btn btn-primary btn-full" onClick={() => navigate('/admin/results')}>View Results →</button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
