@@ -42,6 +42,7 @@ router.post('/admin/students/bulk-delete', auth, adminOnly, adminCtrl.bulkDelete
 router.delete('/admin/students/:student_id', auth, adminOnly, adminCtrl.deleteStudent);
 router.put('/admin/profile',  auth, adminOnly, adminCtrl.updateProfile);
 router.put('/admin/password', auth, adminOnly, adminCtrl.changePassword);
+router.post('/admin/elections/:election_id/inject-test-votes', auth, adminOnly, adminCtrl.injectTestVotes);
 
 // ── COURSES ───────────────────────────────────────────────────
 router.post('/courses',                  auth, adminOnly, courseCtrl.createCourse);

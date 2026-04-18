@@ -135,6 +135,85 @@ const reviewPending = async (req, res) => {
   }
 };
 
+// ── INJECT TEST VOTES ──────────────────────────────────────────
+const injectTestVotes = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const admin_id = req.user.id;
+    const { election_id } = req.params;
+    const { votes } = req.body; // Array of { register_number, course_code, token_number }
+
+    await conn.beginTransaction();
+
+    // 1. Get Election details to ensure it is ACTIVE
+    const [elections] = await conn.execute(
+      "SELECT status, is_paused FROM elections WHERE election_id=? FOR SHARE",
+      [election_id]
+    );
+    if (!elections.length || elections[0].status !== 'ACTIVE') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Election must be ACTIVE to inject test data.' });
+    }
+
+    let injected = 0;
+    for (const v of votes) {
+      // Find student by register_number
+      const [st] = await conn.execute('SELECT student_id FROM students WHERE register_number=? AND election_id=?', [v.register_number, election_id]);
+      if (!st.length) continue;
+      const student_id = st[0].student_id;
+
+      // Extract subject_name from the TSV (e.g., "4. Data Warehousing and Data Mining")
+      const subjStr = v.Subject_Name || "";
+      const subjMatch = subjStr.match(/\d+\.\s*(.+)/);
+      const courseName = subjMatch ? subjMatch[1].trim() : subjStr.trim();
+      
+      // Find course_id by course_name
+      const [co] = await conn.execute('SELECT course_id FROM courses WHERE course_name=? AND election_id=?', [courseName, election_id]);
+      if (!co.length) continue;
+      const course_id = co[0].course_id;
+
+      // 1. Mark token as CONFIRMED directly
+      const [tokens] = await conn.execute(
+        "SELECT token_id, token_code, token_number FROM student_tokens WHERE student_id=? AND election_id=? AND token_number=? FOR UPDATE",
+        [student_id, election_id, v.Token.replace('T', '')]
+      );
+      if (!tokens.length) continue;
+      const token = tokens[0];
+
+      // 2. Get next available seat (FCFS)
+      const [seats] = await conn.execute(
+        'SELECT seat_id, seat_code, seat_number FROM seats WHERE election_id=? AND is_available=TRUE ORDER BY seat_number ASC LIMIT 1 FOR UPDATE',
+        [election_id]
+      );
+      if (!seats.length) continue;
+      const seat = seats[0];
+
+      // 3. Atomically claim seat
+      await conn.execute(
+        'UPDATE seats SET is_available=FALSE, course_id=?, student_token_id=?, booked_at=NOW() WHERE seat_id=?',
+        [course_id, token.token_id, seat.seat_id]
+      );
+
+      // 4. Mark token as CONFIRMED
+      await conn.execute(
+        "UPDATE student_tokens SET status='CONFIRMED', course_id=?, seat_id=?, timestamp_booked=NOW() WHERE token_id=?",
+        [course_id, seat.seat_id, token.token_id]
+      );
+
+      injected++;
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: `Successfully injected ${injected} test votes.` });
+  } catch (err) {
+    await conn.rollback();
+    console.error('injectTestVotes error:', err);
+    res.status(500).json({ success: false, message: 'Server error during injection.' });
+  } finally {
+    conn.release();
+  }
+};
+
 // ── UPLOAD STUDENTS VIA CSV ───────────────────────────────────
 const uploadStudentsCSV = async (req, res) => {
   const conn = await pool.getConnection();
@@ -618,4 +697,4 @@ const bulkReviewPending = async (req, res) => {
   }
 };
 
-export { getPending, reviewPending, bulkReviewPending, uploadStudentsCSV, getStudents, getStudentById, deleteStudent, bulkDeleteStudents, updateProfile, changePassword };
+export { getPending, reviewPending, bulkReviewPending, uploadStudentsCSV, getStudents, getStudentById, deleteStudent, bulkDeleteStudents, updateProfile, changePassword, injectTestVotes };
