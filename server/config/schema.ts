@@ -61,7 +61,7 @@ const schemaStatements = [
     password_hash TEXT NOT NULL,
     section TEXT NOT NULL DEFAULT 'A',
     batch_year TEXT,
-    admin_id TEXT NOT NULL,
+    admin_id TEXT,
     election_id INTEGER,
     is_approved BOOLEAN DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT TRUE,
@@ -77,7 +77,7 @@ const schemaStatements = [
     email TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     section TEXT NOT NULL,
-    admin_id TEXT NOT NULL,
+    admin_id TEXT,
     otp_code TEXT,
     otp_expires_at TIMESTAMP,
     is_email_verified BOOLEAN DEFAULT FALSE,
@@ -404,6 +404,8 @@ const schemaPatchStatements = [
   `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS p_username TEXT`,
   `ALTER TABLE elections ADD COLUMN IF NOT EXISTS universal_slot_cap INTEGER DEFAULT 10000`,
   `ALTER TABLE elections ADD COLUMN IF NOT EXISTS is_frozen BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE students ALTER COLUMN admin_id DROP NOT NULL`,
+  `ALTER TABLE pending_registrations ALTER COLUMN admin_id DROP NOT NULL`,
 ];
 
 export async function ensureDatabaseSchema() {

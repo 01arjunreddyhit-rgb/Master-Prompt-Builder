@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import { sendOTP  } from '../config/email';
+import { log } from '../log';
 
 // Generate 6-digit OTP
 const genOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -186,7 +187,8 @@ const resendOTP = async (req, res) => {
         'UPDATE pending_registrations SET otp_code=?, otp_expires_at=? WHERE email=?',
         [otp, expires, email]
       );
-      try { await sendOTP(email, otp, rows[0].name); } catch(e) {}
+      log(`OTP for ${email}: ${otp}`);
+      try { await sendOTP(email, otp, rows[0].name); } catch(e) { log(`Email failed: ${e.message}`); }
       return res.json({ success: true, message: 'OTP resent.' });
     }
 
@@ -253,19 +255,21 @@ const studentSelfRegister = async (req, res) => {
     const email = normalizeEmail(req.body.email);
     const password = req.body.password || '';
     const section = normalizeText(req.body.section).toUpperCase();
-    const admin_id = normalizeAdminId(req.body.admin_id);
+    const admin_id = req.body.admin_id ? normalizeAdminId(req.body.admin_id) : null;
 
-    if (!name || !register_number || !email || !password || !section || !admin_id) {
-      return res.status(400).json({ success: false, message: 'All fields required.' });
+    if (!name || !register_number || !email || !password || !section) {
+      return res.status(400).json({ success: false, message: 'Required: Name, Register No, Email, Password, Section.' });
     }
     if (password.length < 8) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
     }
 
-    // Check admin exists
-    const [admins] = await pool.execute('SELECT admin_id FROM admins WHERE admin_id=?', [admin_id]);
-    if (!admins.length) {
-      return res.status(404).json({ success: false, message: 'Admin ID not found.' });
+    // Check admin exists ONLY IF provided
+    if (admin_id) {
+      const [admins] = await pool.execute('SELECT admin_id FROM admins WHERE admin_id=?', [admin_id]);
+      if (!admins.length) {
+        return res.status(404).json({ success: false, message: 'Admin ID not found.' });
+      }
     }
 
     // Let users retry a pending/unverified request with fresh credentials and OTP.
@@ -303,7 +307,8 @@ const studentSelfRegister = async (req, res) => {
         [name, register_number, email, password_hash, section, admin_id, otp, otp_expires, 'CLAIMING']
       );
       
-      try { await sendOTP(email, otp, name); } catch(e) {}
+      log(`OTP for ${email}: ${otp}`);
+      try { await sendOTP(email, otp, name); } catch(e) { log(`Email failed: ${e.message}`); }
       return res.status(200).json({ success: true, message: 'Invitation found! Please verify OTP to activate your account.', email });
     }
 
@@ -437,8 +442,13 @@ const forgotPassword = async (req, res) => {
     if (!email || !role) return res.status(400).json({ success: false, message: 'Email and role required.' });
 
     const table = role === 'admin' ? 'admins' : 'students';
-    const [rows] = await pool.execute(`SELECT name, admin_name FROM ${table} WHERE email=?`, [email]);
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Email not found.' });
+    const query = role === 'admin' 
+      ? `SELECT admin_name as name FROM admins WHERE email=?`
+      : `SELECT name FROM students WHERE email=? OR register_number=?`;
+    const params = role === 'admin' ? [email] : [email, email]; // Using 'email' variable as input which might be register_number
+
+    const [rows] = await pool.execute(query, params);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Identity not found. Check your email/ID.' });
 
     const name = rows[0].name || rows[0].admin_name;
     const otp = genOTP();
@@ -449,7 +459,8 @@ const forgotPassword = async (req, res) => {
       [otp, expires, email]
     );
 
-    try { await sendOTP(email, otp, name); } catch(e) {}
+    log(`OTP for ${email}: ${otp}`);
+    try { await sendOTP(email, otp, name); } catch(e) { log(`Email failed: ${e.message}`); }
     
     res.json({ success: true, message: 'Recovery OTP sent to your email.' });
   } catch (err) {

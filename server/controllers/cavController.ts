@@ -291,10 +291,11 @@ export const confirmParticipation = async (req, res) => {
       }
     }
 
-    // Save metadata to student account
+    // Save metadata and link to Admin (Decoupling logic)
+    const [elecAdmin] = await conn.execute('SELECT admin_id FROM elections WHERE election_id=?', [election_id]);
     await conn.execute(
-      'UPDATE students SET metadata=? WHERE student_id=?',
-      [JSON.stringify(metadata), student_id]
+      'UPDATE students SET metadata=?, admin_id=COALESCE(admin_id, ?) WHERE student_id=?',
+      [JSON.stringify(metadata), elecAdmin[0].admin_id, student_id]
     );
 
     // Create participant entry

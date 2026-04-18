@@ -292,7 +292,7 @@ export default function StudentDashboard() {
     if (discoverQ.length < 2) return;
     setIsDiscovering(true);
     try {
-      const { data: res } = await api.get(`/search?q=${discoverQ}`);
+      const { data: res } = await api.get(`/search/elections?q=${discoverQ}`);
       setDiscoverRes(res.data);
     } catch (err) { setError('Search failed.'); }
     finally { setIsDiscovering(false); }
