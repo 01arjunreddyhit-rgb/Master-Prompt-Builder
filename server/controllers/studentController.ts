@@ -115,9 +115,9 @@ const bookSeat = async (req, res) => {
 
     await conn.beginTransaction();
 
-    // 1. Check election is ACTIVE and NOT PAUSED
+    // 1. Check election is ACTIVE, NOT PAUSED, and NOT FROZEN
     const [elections] = await conn.execute(
-      "SELECT status, is_paused, final_courses_per_student FROM elections WHERE election_id=? FOR SHARE",
+      "SELECT status, is_paused, is_frozen, final_courses_per_student FROM elections WHERE election_id=? FOR SHARE",
       [election_id]
     );
     if (!elections.length || elections[0].status !== 'ACTIVE') {
@@ -126,7 +126,11 @@ const bookSeat = async (req, res) => {
     }
     if (elections[0].is_paused) {
       await conn.rollback();
-      return res.status(403).json({ success: false, message: 'Election is currently PAUSED by administrator. Please wait.' });
+      return res.status(403).json({ success: false, message: 'Election is currently PAUSED. Please wait.' });
+    }
+    if (elections[0].is_frozen) {
+      await conn.rollback();
+      return res.status(403).json({ success: false, message: 'Election is currently FROZEN. Token usage is blocked.' });
     }
 
     // 2. Check course exists and is active

@@ -571,6 +571,22 @@ const resumeElection = async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
 };
 
+// ── FREEZE (Tokens) ───────────────────────────────────────────
+const freezeElection = async (req, res) => {
+  try {
+    await pool.execute("UPDATE elections SET is_frozen=TRUE WHERE election_id=? AND status='ACTIVE'", [req.params.election_id]);
+    res.json({ success: true, message: 'Election Frozen (Token Usage Blocked).' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
+};
+
+// ── UNFREEZE (Tokens) ─────────────────────────────────────────
+const unfreezeElection = async (req, res) => {
+  try {
+    await pool.execute("UPDATE elections SET is_frozen=FALSE WHERE election_id=? AND status='ACTIVE'", [req.params.election_id]);
+    res.json({ success: true, message: 'Election Unfrozen (Token Usage Resumed).' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Error.' }); }
+};
+
 // ── STOP ──────────────────────────────────────────────────────
 const stopElection = async (req, res) => {
   const conn = await pool.getConnection();
@@ -905,7 +921,7 @@ const triggerInjection = async (req, res) => {
 
 export {
   createElection, copyElection, updateElection, getElections, getElectionStatus, getChecklist, 
-  initElection, startElection, pauseElection, resumeElection, stopElection, deleteElection,
+  initElection, startElection, pauseElection, resumeElection, freezeElection, unfreezeElection, stopElection, deleteElection,
   searchElections, getAdminProfile,
   scheduleElection, getInvitees, saveInvitees,
   uploadInstitutionCSV, saveInviteFieldConfig, getPoolCalculation,

@@ -543,7 +543,14 @@ export default function ElectionControl() {
                       </>
                     )}
                     {selectedElection.status === 'ACTIVE' && (
-                       <button className="btn btn-surface btn-full" style={{ color:'#DC2626', marginTop: 5 }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
+                       <>
+                         {selectedElection.is_frozen ? (
+                            <button className="btn btn-primary btn-full" style={{ background: '#4F46E5' }} onClick={() => action('unfreeze')}>❄️ UNFREEZE TOKENS</button>
+                         ) : (
+                            <button className="btn btn-navy btn-full" style={{ background: '#1E293B' }} onClick={() => action('freeze')}>🧊 FREEZE TOKENS</button>
+                         )}
+                         <button className="btn btn-surface btn-full" style={{ color:'#DC2626', marginTop: 5 }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
+                       </>
                     )}
                     {selectedElection.status === 'STOPPED' && <Button variant="primary" onClick={() => navigate('/admin/results')}>View Results →</Button>}
                   </div>

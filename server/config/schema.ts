@@ -402,6 +402,7 @@ const schemaPatchStatements = [
   `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS p_profile_id TEXT`,
   `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS p_username TEXT`,
   `ALTER TABLE elections ADD COLUMN IF NOT EXISTS universal_slot_cap INTEGER DEFAULT 10000`,
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS is_frozen BOOLEAN DEFAULT FALSE`,
 ];
 
 export async function ensureDatabaseSchema() {

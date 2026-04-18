@@ -80,6 +80,8 @@ router.post('/elections/:election_id/init',      auth, adminOnly, electionCtrl.i
 router.post('/elections/:election_id/start',     auth, adminOnly, electionCtrl.startElection);
 router.post('/elections/:election_id/pause',     auth, adminOnly, electionCtrl.pauseElection);
 router.post('/elections/:election_id/resume',    auth, adminOnly, electionCtrl.resumeElection);
+router.post('/elections/:election_id/freeze',    auth, adminOnly, electionCtrl.freezeElection);
+router.post('/elections/:election_id/unfreeze',  auth, adminOnly, electionCtrl.unfreezeElection);
 router.post('/elections/:election_id/stop',      auth, adminOnly, electionCtrl.stopElection);
 router.delete('/elections/:election_id',         auth, adminOnly, electionCtrl.deleteElection);
 // Instruction 3: Schedule
