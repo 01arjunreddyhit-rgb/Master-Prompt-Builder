@@ -814,6 +814,8 @@ const issueTokenBatch = async (election_id: number, batchSize = 30) => {
   } finally {
     conn.release();
   }
+};
+
 const triggerInjection = async (req, res) => {
   try {
     const { election_id } = req.params;
