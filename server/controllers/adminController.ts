@@ -648,14 +648,14 @@ const bulkReviewPending = async (req, res) => {
           student_id = result.insertId;
         }
 
-        // Generate tokens
-        if (election && courses.length > 0) {
+        // Generate tokens (Exactly 6 tokens T1-T6 as requested)
+        if (election) {
           const [existingTokens] = await conn.execute(
             'SELECT token_id FROM student_tokens WHERE student_id=? AND election_id=?',
             [student_id, election.election_id]
           );
           if (!existingTokens.length) {
-            for (let i = 1; i <= courses.length; i++) {
+            for (let i = 1; i <= 6; i++) {
               const token_code = buildTokenCode(p.register_number, election.election_id, i);
               await conn.execute(
                 'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
