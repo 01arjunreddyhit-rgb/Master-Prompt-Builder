@@ -135,6 +135,7 @@ export default function AdminResults() {
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Locked Choice Results</h3>
                   {choices && <Badge variant="navy">{choices.summary?.length || 0} Courses</Badge>}
+                </div>
                 {choices?.summary && choices.summary.length > 0 ? (
                   <ChoiceResultsTable summary={choices.summary} />
                 ) : (
