@@ -216,6 +216,39 @@ export default function AdminStudents() {
     setCustomFields(customFields.filter(x => x !== f));
   };
 
+  const handleDownloadAllZip = async () => {
+    try {
+      setLoading(true);
+      const { default: JSZip } = await import('https://cdn.skypack.dev/jszip');
+      const zip = new JSZip();
+
+      // Define Templates
+      const p1 = ['serial_no', 'register_number', 'name', 'email', 'section'];
+      const p2a = ['email', 'register_number', 'name', 'p_profile_id', 'p_username'];
+      const p2b = ['email', 'register_number', 'section', ...customFields];
+
+      const generateCSV = (headers) => headers.join(',') + '\n' + headers.map(() => '...').join(',');
+
+      zip.file("Phase_1_Invitation_List.csv", generateCSV(p1));
+      zip.file("Phase_2A_Fixed_Identity.csv", generateCSV(p2a));
+      zip.file("Phase_2B_Supplementary_Details.csv", generateCSV(p2b));
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "Election_Preparation_Templates.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to generate ZIP. Please check your internet connection for the ZIP utility.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDownloadTemplate = (specificHeaders = null) => {
     const core = ['serial_no', 'register_number', 'name', 'email', 'section'];
     const headers = specificHeaders || [...core, 'p_profile_id', 'p_username', ...customFields];
@@ -224,7 +257,7 @@ export default function AdminStudents() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `template_${specificHeaders ? specificHeaders.join('_') : 'full'}.csv`;
+    a.download = `template_${specificHeaders ? 'phase' : 'master'}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -349,6 +382,9 @@ export default function AdminStudents() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button className="btn btn-primary" onClick={handleDownloadAllZip} disabled={loading} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>
+              {loading ? <Spinner /> : '📥 Download All Templates (ZIP)'}
+            </button>
             {!!selectedStudentIds.length && (
               <button className="btn btn-danger"
                 onClick={handleBulkDelete} disabled={bulkDeleting}>
@@ -374,9 +410,6 @@ export default function AdminStudents() {
               <button className="btn btn-primary btn-sm w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 {uploading ? <Spinner /> : 'Upload Invitation CSV'}
               </button>
-              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['serial_no', 'register_number', 'name', 'email', 'section']); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Download Template</a>
-              </div>
             </div>
           </div>
 
@@ -394,9 +427,6 @@ export default function AdminStudents() {
               <button className="btn btn-primary btn-sm w-full" style={{ background: '#DB2777', borderColor: '#DB2777' }} onClick={() => document.getElementById('upload-2a').click()} disabled={uploading}>
                 {uploading ? <Spinner /> : 'Upload 2A CSV'}
               </button>
-              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'register_number', 'name', 'p_profile_id', 'p_username']); }} style={{ color: '#DB2777', textDecoration: 'underline' }}>Download Template</a>
-              </div>
             </div>
           </div>
 
@@ -414,9 +444,6 @@ export default function AdminStudents() {
               <button className="btn btn-primary btn-sm w-full" style={{ background: '#4F46E5', borderColor: '#4F46E5' }} onClick={() => document.getElementById('upload-2b').click()} disabled={uploading}>
                 {uploading ? <Spinner /> : 'Upload 2B CSV'}
               </button>
-              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'register_number', 'section', ...customFields]); }} style={{ color: '#4F46E5', textDecoration: 'underline' }}>Download Template</a>
-              </div>
             </div>
           </div>
         </div>
