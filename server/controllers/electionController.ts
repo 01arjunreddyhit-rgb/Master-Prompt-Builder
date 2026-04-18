@@ -698,14 +698,14 @@ const searchElections = async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT e.election_id, e.election_name, e.semester_tag, e.status, 
-              a.admin_name, a.college_name, cav.election_code
+              a.admin_id, a.admin_name, a.college_name, cav.election_code
        FROM elections e
        JOIN admins a ON e.admin_id = a.admin_id
-       JOIN election_cav cav ON e.election_id = cav.election_id
-       WHERE (e.election_name LIKE ? OR a.admin_name LIKE ? OR a.college_name LIKE ?)
+       LEFT JOIN election_cav cav ON e.election_id = cav.election_id
+       WHERE (e.election_name LIKE ? OR a.admin_name LIKE ? OR a.college_name LIKE ? OR a.admin_id LIKE ?)
        AND e.status != 'STOPPED'
        LIMIT 20`,
-      [`%${q}%`, `%${q}%`, `%${q}%`]
+      [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
     );
     res.json({ success: true, data: rows });
   } catch (err) {

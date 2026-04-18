@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StudentSidebar } from '../../components/ui/Sidebar';
 import { StatusPill, Alert, Spinner, Modal } from '../../components/ui/index';
 import api from '../../services/api';
@@ -282,6 +283,24 @@ export default function StudentDashboard() {
   const [booking, setBooking]       = useState(false);
   const [error, setError]           = useState('');
   const [filterText, setFilterText] = useState('');
+  const [discoverQ, setDiscoverQ] = useState('');
+  const [discoverRes, setDiscoverRes] = useState([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (discoverQ.length < 2) return;
+    setIsDiscovering(true);
+    try {
+      const { data: res } = await api.get(`/search?q=${discoverQ}`);
+      setDiscoverRes(res.data);
+    } catch (err) { setError('Search failed.'); }
+    finally { setIsDiscovering(false); }
+  };
+
+  const handleJoin = (code) => {
+    navigate(`/join/${code}`);
+  };
 
   const load = useCallback(() => {
     api.get('/student/dashboard').then(r => setData(r.data))
@@ -339,11 +358,57 @@ export default function StudentDashboard() {
         {error && <Alert type="error">{error}</Alert>}
 
         {/* ── No election ── */}
+        {/* ── No election ── */}
         {!student?.election_id && (
-          <div style={{ background: 'var(--surface)', borderRadius: 18, padding: '60px 24px', textAlign: 'center', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>⏳</div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Not Linked Yet</h3>
-            <p style={{ color: 'var(--text-3)', maxWidth: 320, margin: '0 auto' }}>Your admin will link you to an election soon.</p>
+          <div className="animate-in">
+            <div style={{ background: 'var(--surface)', borderRadius: 24, padding: '48px 32px', textAlign: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #4F46E5, #818CF8)' }} />
+              <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🔍</div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text)', fontSize: '1.6rem', marginBottom: 12 }}>Discover Live Elections</h2>
+              <p style={{ color: 'var(--text-3)', maxWidth: 460, margin: '0 auto 32px', lineHeight: 1.6 }}>
+                You are not currently linked to any election. Search by <strong>Admin ID</strong> or <strong>Institution Name</strong> to join.
+              </p>
+
+              <form onSubmit={handleSearch} style={{ maxWidth: 500, margin: '0 auto', display: 'flex', gap: 10, marginBottom: 40 }}>
+                <input 
+                  value={discoverQ} onChange={e => setDiscoverQ(e.target.value)}
+                  placeholder="e.g. ADM-2026-001 or IIT Madras..."
+                  style={{ flex: 1, padding: '14px 20px', borderRadius: 14, border: '2px solid var(--border)', background: 'var(--muted-bg)', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor='var(--accent)'}
+                  onBlur={e => e.target.style.borderColor='var(--border)'}
+                />
+                <button className="btn btn-primary btn-lg" type="submit" disabled={isDiscovering} style={{ borderRadius: 14, padding: '0 28px' }}>
+                  {isDiscovering ? <Spinner /> : 'Search'}
+                </button>
+              </form>
+
+              {discoverRes.length > 0 ? (
+                <div style={{ textAlign: 'left', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+                  {discoverRes.map(e => (
+                    <div key={e.election_id} className="animate-in" style={{ background: 'var(--muted-bg)', borderRadius: 16, border: '1px solid var(--border)', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'transform 0.2s' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>{e.election_name}</span>
+                          <StatusPill status={e.status} />
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginBottom: 2 }}>{e.college_name}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', display: 'flex', gap: 8 }}>
+                          <span>Conducted by: <strong style={{ color: 'var(--text-3)' }}>{e.admin_name}</strong></span>
+                          <span>•</span>
+                          <span style={{ fontFamily: 'var(--mono)' }}>ID: {e.admin_id}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                         <div className="code-chip" style={{ fontSize: '0.7rem' }}>{e.election_code}</div>
+                         <button className="btn btn-navy btn-sm" onClick={() => handleJoin(e.election_code)}>Join →</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : discoverQ && !isDiscovering && (
+                <div style={{ color: 'var(--text-4)', fontSize: '0.9rem' }}>No matching live elections found for "{discoverQ}"</div>
+              )}
+            </div>
           </div>
         )}
 
