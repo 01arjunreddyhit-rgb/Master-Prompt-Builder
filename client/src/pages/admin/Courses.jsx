@@ -43,7 +43,6 @@ export default function AdminCourses() {
     description: '', 
     batch: '', 
     semester: '', 
-    total_seats: 126, 
     credit_weight: 3.0,
     is_active: true 
   });
@@ -131,7 +130,7 @@ export default function AdminCourses() {
               <Button variant="primary" onClick={() => { 
                 setEditCourse(null); 
                 setSelectedLibraryId('');
-                setForm({ subject_code: '', course_name: '', description: '', batch: '', semester: '', total_seats: 126, credit_weight: 3.0, is_active: true }); 
+                setForm({ subject_code: '', course_name: '', description: '', batch: '', semester: '', credit_weight: 3.0, is_active: true }); 
                 setShowModal(true); 
               }}>+ Add Course</Button>
             </div>
@@ -165,7 +164,7 @@ export default function AdminCourses() {
                   </div>
                   
                   <div style={{ marginBottom: 24 }}>
-                    <SeatFill booked={c.token_count || 0} total={c.total_seats} />
+                    <SeatFill booked={c.token_count || 0} total={selectedElection?.invite_count || 126} />
                   </div>
 
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -204,8 +203,7 @@ export default function AdminCourses() {
                   <Input label="Semester" value={form.semester} onChange={e => setForm({ ...form, semester: e.target.value })} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Input label="Total Seats" type="number" value={form.total_seats} onChange={e => setForm({ ...form, total_seats: parseInt(e.target.value) })} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
                   <Input label="Credits" type="number" step="0.5" value={form.credit_weight} onChange={e => setForm({ ...form, credit_weight: parseFloat(e.target.value) })} />
                 </div>
 

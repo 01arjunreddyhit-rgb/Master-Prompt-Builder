@@ -58,7 +58,7 @@ const createCourse = async (req, res) => {
     const admin_id = req.user.id;
     const {
       election_id, course_name, subject_code, description,
-      batch, semester, total_seats = 126, credit_weight, 
+      batch, semester, credit_weight, 
       library_course_id = null
     } = req.body;
     
@@ -107,8 +107,8 @@ const createCourse = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO courses
-       (election_id, course_name, subject_code, description, batch, semester, total_seats, credit_weight)
-       VALUES (?,?,?,?,?,?,?,?)`,
+       (election_id, course_name, subject_code, description, batch, semester, credit_weight)
+       VALUES (?,?,?,?,?,?,?)`,
       [
         election_id,
         resolvedCourse.course_name.trim(),
@@ -116,7 +116,6 @@ const createCourse = async (req, res) => {
         resolvedCourse.description?.trim() || null,
         resolvedCourse.batch?.trim() || null,
         resolvedCourse.semester?.trim() || null,
-        total_seats,
         Number(resolvedCourse.credit_weight) || 3.0,
       ]
     );
@@ -146,12 +145,7 @@ const getCourses = async (req, res) => {
       [election_id]
     );
 
-    const enriched = rows.map(c => ({
-      ...c,
-      available_seats: c.total_seats - (c.booked_count || 0),
-    }));
-
-    res.json({ success: true, data: enriched });
+    res.json({ success: true, data: rows });
   } catch (err) {
     console.error('getCourses error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -161,8 +155,6 @@ const getCourses = async (req, res) => {
 const getCourseLibrary = async (req, res) => {
   try {
     const admin_id = req.user.id;
-    // await seedCourseLibraryFromHistory(admin_id); // Optional: run once if migrating
-
     const [rows] = await pool.execute(
       `SELECT library_course_id, course_name, subject_code, description, batch, semester, credit_weight, updated_at
        FROM course_library

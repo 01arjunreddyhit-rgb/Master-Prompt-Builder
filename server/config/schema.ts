@@ -70,7 +70,6 @@ const schemaStatements = [
     description TEXT,
     batch TEXT,
     semester TEXT,
-    total_seats INTEGER DEFAULT 126,
     credit_weight DECIMAL(3, 1) DEFAULT 3.0,
     is_active BOOLEAN DEFAULT TRUE,
     is_burst BOOLEAN DEFAULT FALSE,
@@ -359,6 +358,8 @@ const schemaPatchStatements = [
   `ALTER TABLE courses ADD COLUMN IF NOT EXISTS semester TEXT`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS batch TEXT`,
   `ALTER TABLE course_library ADD COLUMN IF NOT EXISTS semester TEXT`,
+  `ALTER TABLE courses DROP COLUMN IF EXISTS total_seats`,
+  `ALTER TABLE course_library DROP COLUMN IF EXISTS total_seats`,
   `ALTER TABLE seats ADD COLUMN IF NOT EXISTS room_ticket_id INTEGER`,
 ];
 

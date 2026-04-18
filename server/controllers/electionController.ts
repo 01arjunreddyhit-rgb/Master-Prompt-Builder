@@ -629,7 +629,7 @@ const getAdminProfile = async (req, res) => {
     if (!admin.length) return res.status(404).json({ success: false, message: 'Admin not found.' });
 
     const [elecs] = await pool.execute(
-      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, cav.election_code
+      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, e.invite_count, cav.election_code
        FROM elections e
        JOIN election_cav cav ON e.election_id = cav.election_id
        WHERE e.admin_id=? AND e.status != 'STOPPED'`,
