@@ -349,9 +349,6 @@ export default function AdminStudents() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button className="btn btn-ghost" onClick={() => handleDownloadTemplate()} style={{ border: '1px solid var(--border)', background: 'white' }}>
-              📥 Download Master Template (Full)
-            </button>
             {!!selectedStudentIds.length && (
               <button className="btn btn-danger"
                 onClick={handleBulkDelete} disabled={bulkDeleting}>
