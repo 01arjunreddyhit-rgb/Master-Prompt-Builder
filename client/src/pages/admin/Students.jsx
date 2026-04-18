@@ -398,7 +398,7 @@ export default function AdminStudents() {
                 {uploading ? <Spinner /> : 'Upload 2A CSV'}
               </button>
               <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'p_profile_id', 'p_username']); }} style={{ color: '#DB2777', textDecoration: 'underline' }}>Download Template</a>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'register_number', 'name', 'p_profile_id', 'p_username']); }} style={{ color: '#DB2777', textDecoration: 'underline' }}>Download Template</a>
               </div>
             </div>
           </div>
@@ -418,7 +418,7 @@ export default function AdminStudents() {
                 {uploading ? <Spinner /> : 'Upload 2B CSV'}
               </button>
               <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', ...customFields]); }} style={{ color: '#4F46E5', textDecoration: 'underline' }}>Download Template</a>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'register_number', 'section', ...customFields]); }} style={{ color: '#4F46E5', textDecoration: 'underline' }}>Download Template</a>
               </div>
             </div>
           </div>
