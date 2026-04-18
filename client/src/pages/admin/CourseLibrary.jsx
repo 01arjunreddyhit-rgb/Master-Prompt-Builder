@@ -14,9 +14,8 @@ export default function CourseLibrary() {
     course_name: '', 
     subject_code: '', 
     description: '',
-    min_enrollment: 45,
-    max_enrollment: 75,
-    classes_per_course: 1,
+    batch: '',
+    semester: '',
     credit_weight: 3.0
   });
 
@@ -60,9 +59,8 @@ export default function CourseLibrary() {
       course_name: '', 
       subject_code: '', 
       description: '',
-      min_enrollment: 45,
-      max_enrollment: 75,
-      classes_per_course: 1,
+      batch: '',
+      semester: '',
       credit_weight: 3.0
     });
   };
@@ -73,19 +71,18 @@ export default function CourseLibrary() {
       course_name: c.course_name, 
       subject_code: c.subject_code || '', 
       description: c.description || '',
-      min_enrollment: c.min_enrollment || 45,
-      max_enrollment: c.max_enrollment || 75,
-      classes_per_course: c.classes_per_course || 1,
+      batch: c.batch || '',
+      semester: c.semester || '',
       credit_weight: c.credit_weight || 3.0
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Remove this course from global library? This won\'t affect active elections.')) return;
+    if (!window.confirm('Remove this course from global repository? This won\'t affect active elections.')) return;
     try {
       await api.delete(`/courses/library/${id}`);
-      setMsg({ type: 'success', text: 'Course removed from library.' });
+      setMsg({ type: 'success', text: 'Course removed from repository.' });
       fetchCourses();
     } catch (err) {
       setMsg({ type: 'error', text: 'Error deleting course.' });
@@ -94,10 +91,9 @@ export default function CourseLibrary() {
 
   const filtered = courses.filter(c => 
     c.course_name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.subject_code && c.subject_code.toLowerCase().includes(search.toLowerCase()))
+    (c.subject_code && c.subject_code.toLowerCase().includes(search.toLowerCase())) ||
+    (c.batch && c.batch.toLowerCase().includes(search.toLowerCase()))
   );
-
-
 
   return (
     <div className="app-shell">
@@ -118,10 +114,9 @@ export default function CourseLibrary() {
              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}><LoadingScreen /></div>
           ) : (
             <>
-
           <div style={{ marginBottom: 32, background: 'var(--surface)', padding: 12, borderRadius: 16, border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
             <Input 
-              placeholder="Search by course name, code or department..." 
+              placeholder="Search by course name, code, batch or semester..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               icon="🔍"
@@ -133,7 +128,7 @@ export default function CourseLibrary() {
             <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--bg-2)', borderRadius: 24, border: '2px dashed var(--border)' }}>
               <div style={{ fontSize: '3rem', marginBottom: 16 }}>📚</div>
               <h3 style={{ color: 'var(--text-2)' }}>No courses found</h3>
-              <p style={{ color: 'var(--text-4)' }}>Start building your global course library by adding your first elective.</p>
+              <p style={{ color: 'var(--text-4)' }}>Start building your global course repository by adding your first elective.</p>
             </div>
           ) : (
             <div className="grid grid-3" style={{ gap: 24 }}>
@@ -150,8 +145,8 @@ export default function CourseLibrary() {
                   <div style={{ fontSize: '0.9rem', color: 'var(--text-4)', fontFamily: 'var(--mono)', marginBottom: 16 }}>{c.subject_code || 'No Code'}</div>
                   
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <div className="badge-outline">Min: {c.min_enrollment}</div>
-                    <div className="badge-outline">Max: {c.max_enrollment}</div>
+                    {c.batch && <div className="badge-outline">Batch: {c.batch}</div>}
+                    {c.semester && <div className="badge-outline">Sem: {c.semester}</div>}
                     <div className="badge-outline">{c.credit_weight} Credits</div>
                   </div>
                 </Card>
@@ -182,31 +177,25 @@ export default function CourseLibrary() {
                   placeholder="Course description (optional)..." 
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  style={{ width: '100%', minHeight: 100, padding: 12, borderRadius: 12, border: '1px solid var(--border)', fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }}
+                  style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 12, border: '1px solid var(--border)', fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }}
                 />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <Input 
-                    label="Min Enrolment" 
-                    type="number"
-                    value={formData.min_enrollment}
-                    onChange={(e) => setFormData({...formData, min_enrollment: e.target.value})}
+                    label="Batch" 
+                    placeholder="e.g. 2021-25"
+                    value={formData.batch}
+                    onChange={(e) => setFormData({...formData, batch: e.target.value})}
                   />
                   <Input 
-                    label="Max Enrolment" 
-                    type="number"
-                    value={formData.max_enrollment}
-                    onChange={(e) => setFormData({...formData, max_enrollment: e.target.value})}
+                    label="Semester" 
+                    placeholder="e.g. VI"
+                    value={formData.semester}
+                    onChange={(e) => setFormData({...formData, semester: e.target.value})}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Input 
-                    label="Classes" 
-                    type="number"
-                    value={formData.classes_per_course}
-                    onChange={(e) => setFormData({...formData, classes_per_course: e.target.value})}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
                   <Input 
                     label="Credits" 
                     type="number"

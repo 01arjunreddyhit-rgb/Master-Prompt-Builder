@@ -9,27 +9,25 @@ const syncCourseLibraryEntry = async (admin_id, payload) => {
 
   const subject_code = payload.subject_code?.trim() || null;
   const description = payload.description?.trim() || null;
-  const min_enrollment = Number(payload.min_enrollment) || 45;
-  const max_enrollment = Number(payload.max_enrollment) || 75;
-  const classes_per_course = Number(payload.classes_per_course) || 1;
+  const batch = payload.batch?.trim() || null;
+  const semester = payload.semester?.trim() || null;
   const credit_weight = Number(payload.credit_weight || 3.0).toFixed(1);
   const library_key = normalizeLibraryKey({ course_name, subject_code: subject_code || '' });
 
   await pool.execute(
     `INSERT INTO course_library
-      (admin_id, library_key, course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,NOW())
+      (admin_id, library_key, course_name, subject_code, description, batch, semester, credit_weight, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,NOW())
      ON CONFLICT (admin_id, library_key)
      DO UPDATE SET
        course_name = EXCLUDED.course_name,
        subject_code = EXCLUDED.subject_code,
        description = EXCLUDED.description,
-       min_enrollment = EXCLUDED.min_enrollment,
-       max_enrollment = EXCLUDED.max_enrollment,
-       classes_per_course = EXCLUDED.classes_per_course,
+       batch = EXCLUDED.batch,
+       semester = EXCLUDED.semester,
        credit_weight = EXCLUDED.credit_weight,
        updated_at = NOW()`,
-    [admin_id, library_key, course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight]
+    [admin_id, library_key, course_name, subject_code, description, batch, semester, credit_weight]
   );
 };
 
@@ -39,9 +37,8 @@ const seedCourseLibraryFromHistory = async (admin_id) => {
         c.course_name,
         c.subject_code,
         c.description,
-        c.min_enrollment,
-        c.max_enrollment,
-        c.classes_per_course,
+        c.batch,
+        c.semester,
         c.credit_weight
      FROM courses c
      JOIN elections e ON c.election_id = e.election_id
@@ -61,16 +58,16 @@ const createCourse = async (req, res) => {
     const admin_id = req.user.id;
     const {
       election_id, course_name, subject_code, description,
-      total_seats = 126, min_enrollment, max_enrollment,
-      classes_per_course, credit_weight, library_course_id = null
+      batch, semester, total_seats = 126, credit_weight, 
+      library_course_id = null
     } = req.body;
+    
     let resolvedCourse = {
       course_name,
       subject_code,
       description,
-      min_enrollment,
-      max_enrollment,
-      classes_per_course,
+      batch,
+      semester,
       credit_weight,
     };
 
@@ -86,7 +83,7 @@ const createCourse = async (req, res) => {
 
     if (library_course_id) {
       const [libraryRows] = await pool.execute(
-        `SELECT course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight
+        `SELECT course_name, subject_code, description, batch, semester, credit_weight
          FROM course_library WHERE library_course_id=? AND admin_id=?`,
         [library_course_id, admin_id]
       );
@@ -98,9 +95,8 @@ const createCourse = async (req, res) => {
         course_name: course_name ?? libraryRows[0].course_name,
         subject_code: subject_code ?? libraryRows[0].subject_code,
         description: description ?? libraryRows[0].description,
-        min_enrollment: min_enrollment ?? libraryRows[0].min_enrollment,
-        max_enrollment: max_enrollment ?? libraryRows[0].max_enrollment,
-        classes_per_course: classes_per_course ?? libraryRows[0].classes_per_course,
+        batch: batch ?? libraryRows[0].batch,
+        semester: semester ?? libraryRows[0].semester,
         credit_weight: credit_weight ?? libraryRows[0].credit_weight,
       };
     }
@@ -111,18 +107,16 @@ const createCourse = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO courses
-       (election_id, course_name, subject_code, description, total_seats,
-        min_enrollment, max_enrollment, classes_per_course, credit_weight)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+       (election_id, course_name, subject_code, description, batch, semester, total_seats, credit_weight)
+       VALUES (?,?,?,?,?,?,?,?)`,
       [
         election_id,
         resolvedCourse.course_name.trim(),
         resolvedCourse.subject_code?.trim() || null,
         resolvedCourse.description?.trim() || null,
+        resolvedCourse.batch?.trim() || null,
+        resolvedCourse.semester?.trim() || null,
         total_seats,
-        Number(resolvedCourse.min_enrollment) || 45,
-        Number(resolvedCourse.max_enrollment) || 75,
-        Number(resolvedCourse.classes_per_course) || 1,
         Number(resolvedCourse.credit_weight) || 3.0,
       ]
     );
@@ -152,7 +146,6 @@ const getCourses = async (req, res) => {
       [election_id]
     );
 
-    // Add available seats count
     const enriched = rows.map(c => ({
       ...c,
       available_seats: c.total_seats - (c.booked_count || 0),
@@ -168,11 +161,10 @@ const getCourses = async (req, res) => {
 const getCourseLibrary = async (req, res) => {
   try {
     const admin_id = req.user.id;
-    await seedCourseLibraryFromHistory(admin_id);
+    // await seedCourseLibraryFromHistory(admin_id); // Optional: run once if migrating
 
     const [rows] = await pool.execute(
-      `SELECT library_course_id, course_name, subject_code, description, min_enrollment, max_enrollment,
-              classes_per_course, credit_weight, updated_at
+      `SELECT library_course_id, course_name, subject_code, description, batch, semester, credit_weight, updated_at
        FROM course_library
        WHERE admin_id=?
        ORDER BY updated_at DESC, course_name ASC`,
@@ -191,11 +183,10 @@ const updateCourse = async (req, res) => {
   try {
     const admin_id = req.user.id;
     const { course_id } = req.params;
-    const { course_name, subject_code, description, min_enrollment, max_enrollment, is_active } = req.body;
+    const { course_name, subject_code, description, batch, semester, is_active } = req.body;
 
     const [rows] = await pool.execute(
-      `SELECT c.course_id, e.admin_id, c.course_name, c.subject_code, c.description,
-              c.min_enrollment, c.max_enrollment, c.classes_per_course, c.credit_weight
+      `SELECT c.course_id, e.admin_id, c.course_name, c.subject_code, c.description, c.batch, c.semester, c.credit_weight
        FROM courses c
        JOIN elections e ON c.election_id=e.election_id
        WHERE c.course_id=? AND e.admin_id=?`,
@@ -208,11 +199,11 @@ const updateCourse = async (req, res) => {
          course_name=COALESCE(?,course_name),
          subject_code=COALESCE(?,subject_code),
          description=COALESCE(?,description),
-         min_enrollment=COALESCE(?,min_enrollment),
-         max_enrollment=COALESCE(?,max_enrollment),
+         batch=COALESCE(?,batch),
+         semester=COALESCE(?,semester),
          is_active=COALESCE(?,is_active)
        WHERE course_id=?`,
-      [course_name, subject_code, description, min_enrollment, max_enrollment,
+      [course_name, subject_code, description, batch, semester,
        is_active !== undefined ? is_active : null, course_id]
     );
 
@@ -220,9 +211,8 @@ const updateCourse = async (req, res) => {
       course_name: course_name ?? rows[0].course_name,
       subject_code: subject_code ?? rows[0].subject_code,
       description: description ?? rows[0].description,
-      min_enrollment: min_enrollment ?? rows[0].min_enrollment,
-      max_enrollment: max_enrollment ?? rows[0].max_enrollment,
-      classes_per_course: rows[0].classes_per_course,
+      batch: batch ?? rows[0].batch,
+      semester: semester ?? rows[0].semester,
       credit_weight: rows[0].credit_weight,
     });
 
@@ -259,11 +249,11 @@ const deleteCourse = async (req, res) => {
 const createLibraryCourse = async (req, res) => {
   try {
     const admin_id = req.user.id;
-    const { course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight } = req.body;
+    const { course_name, subject_code, description, batch, semester, credit_weight } = req.body;
     if (!course_name) return res.status(400).json({ success: false, message: 'course_name required.' });
 
     await syncCourseLibraryEntry(admin_id, {
-      course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight
+      course_name, subject_code, description, batch, semester, credit_weight
     });
     res.status(201).json({ success: true, message: 'Library course saved.' });
   } catch (err) {
@@ -275,20 +265,19 @@ const updateLibraryCourse = async (req, res) => {
   try {
     const admin_id = req.user.id;
     const { id } = req.params;
-    const { course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight } = req.body;
+    const { course_name, subject_code, description, batch, semester, credit_weight } = req.body;
 
     await pool.execute(
       `UPDATE course_library SET
          course_name=COALESCE(?,course_name),
          subject_code=COALESCE(?,subject_code),
          description=COALESCE(?,description),
-         min_enrollment=COALESCE(?,min_enrollment),
-         max_enrollment=COALESCE(?,max_enrollment),
-         classes_per_course=COALESCE(?,classes_per_course),
+         batch=COALESCE(?,batch),
+         semester=COALESCE(?,semester),
          credit_weight=COALESCE(?,credit_weight),
          updated_at=NOW()
        WHERE library_course_id=? AND admin_id=?`,
-      [course_name, subject_code, description, min_enrollment, max_enrollment, classes_per_course, credit_weight, id, admin_id]
+      [course_name, subject_code, description, batch, semester, credit_weight, id, admin_id]
     );
     res.json({ success: true, message: 'Library course updated.' });
   } catch (err) {
@@ -308,4 +297,3 @@ const deleteLibraryCourse = async (req, res) => {
 };
 
 export { createCourse, getCourses, getCourseLibrary, updateCourse, deleteCourse, createLibraryCourse, updateLibraryCourse, deleteLibraryCourse };
-
