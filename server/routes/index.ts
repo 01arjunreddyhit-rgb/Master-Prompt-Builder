@@ -39,7 +39,6 @@ router.post('/admin/students/upload',    auth, adminOnly, upload.single('file'),
 router.get('/admin/students',            auth, adminOnly, adminCtrl.getStudents);
 router.get('/admin/students/:student_id',auth, adminOnly, adminCtrl.getStudentById);
 router.post('/admin/students/bulk-delete', auth, adminOnly, adminCtrl.bulkDeleteStudents);
-router.post('/admin/students/:student_id/reset-password', auth, adminOnly, adminCtrl.forceResetStudentPassword);
 router.delete('/admin/students/:student_id', auth, adminOnly, adminCtrl.deleteStudent);
 router.put('/admin/profile',  auth, adminOnly, adminCtrl.updateProfile);
 router.put('/admin/password', auth, adminOnly, adminCtrl.changePassword);
