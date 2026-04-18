@@ -139,18 +139,7 @@ function CustomFieldsManager({ fields, onAdd, onRemove }) {
     setNewField('');
   };
 
-  const handleDownloadTemplate = (specificHeaders = null) => {
-    const core = ['email', 'register_number', 'name', 'section', 'p_profile_id', 'p_username'];
-    const headers = specificHeaders || [...core, ...fields];
-    const csvContent = headers.join(',') + '\n' + headers.map(() => '...').join(',');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `template_${headers[1] || 'basic'}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+
 
   return (
     <div className="card mb-4" style={{ border: '1px solid var(--accent-glow)', background: 'var(--accent-glow)' }}>
@@ -225,6 +214,21 @@ export default function AdminStudents() {
 
   const removeCustomField = (f) => {
     setCustomFields(customFields.filter(x => x !== f));
+  };
+
+  const handleDownloadTemplate = (specificHeaders = null) => {
+    const core = ['email', 'register_number', 'name', 'section', 'p_profile_id', 'p_username'];
+    const headers = specificHeaders || [...core, ...customFields];
+    const csvContent = headers.join(',') + '\n' + headers.map(() => '...').join(',');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `template_${specificHeaders ? specificHeaders.join('_') : 'full'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const load = useCallback(() => {
