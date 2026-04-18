@@ -628,6 +628,19 @@ const getAdminProfile = async (req, res) => {
     const [admin] = await pool.execute('SELECT admin_name, college_name FROM admins WHERE admin_id=?', [admin_id]);
     if (!admin.length) return res.status(404).json({ success: false, message: 'Admin not found.' });
 
+    const [elecs] = await pool.execute(
+      `SELECT e.election_id, e.election_name, e.semester_tag, e.status, cav.election_code
+       FROM elections e
+       JOIN election_cav cav ON e.election_id = cav.election_id
+       WHERE e.admin_id=? AND e.status != 'STOPPED'`,
+      [admin_id]
+    );
+    res.json({ success: true, admin: admin[0], elections: elecs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 // ── Q2: TOKEN BURST CONTROL (6 modes) ────────────────────────
 const bustTokens = async (req, res) => {
   const conn = await pool.getConnection();
