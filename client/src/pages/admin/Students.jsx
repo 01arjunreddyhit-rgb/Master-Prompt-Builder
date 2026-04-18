@@ -441,7 +441,7 @@ export default function AdminStudents() {
             color: 'var(--navy)', lineHeight: 2,
           }}>
             serial_no, register_number, name, email, section{customFields.length > 0 ? `, ${customFields.join(', ')}` : ''}<br />
-            1, 2301107031, Ranveer S, ranveer@institution.edu, A{customFields.length > 0 ? customFields.map(() => ', ...').join('') : ''}<br />
+            1, 1200045001, Ranveer S, ranveer@institution.edu, A{customFields.length > 0 ? customFields.map(() => ', ...').join('') : ''}<br />
           </code>
           <p className="text-xs text-muted" style={{ marginTop: 8 }}>
             ℹ <strong>Passwords</strong> are managed by the platform. Admins provide the email/identity list only. 
