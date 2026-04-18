@@ -98,7 +98,6 @@ export default function AdminStudents() {
   const [search, setSearch]         = useState('');
   const [section, setSection]       = useState('');
   const [uploadResult, setUploadResult] = useState(null);
-  const [initialPassword, setInitialPassword] = useState('ucos@123');
   const [viewId, setViewId]         = useState(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const fileRef = useRef();
@@ -131,7 +130,6 @@ export default function AdminStudents() {
     setUploading(true); setUploadResult(null);
     const form = new FormData();
     form.append('file', file);
-    form.append('initial_password', initialPassword);
     try {
       const { data } = await api.post('/admin/students/upload', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -211,9 +209,9 @@ export default function AdminStudents() {
         {/* Header */}
         <div className="page-header flex justify-between items-center">
           <div>
-            <h1 className="page-title">Students</h1>
+            <h1 className="page-title">Invite List Management</h1>
             <p className="page-subtitle">
-              {students.length} registered · {confirmedCount} with confirmed courses
+              {students.length} participants invited · {confirmedCount} with confirmed courses
             </p>
           </div>
           <div className="flex gap-2">
@@ -223,14 +221,11 @@ export default function AdminStudents() {
                 {bulkDeleting ? <><Spinner /> Removing...</> : `Remove Selected (${selectedStudentIds.length})`}
               </button>
             )}
-            <input className="form-input" placeholder="Initial password"
-              value={initialPassword} onChange={e => setInitialPassword(e.target.value)}
-              style={{ width: 190 }} />
             <input type="file" accept=".csv" ref={fileRef}
               onChange={handleCSVUpload} style={{ display: 'none' }} />
             <button className="btn btn-primary"
               onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? <><Spinner /> Uploading...</> : 'Upload CSV'}
+              {uploading ? <><Spinner /> Uploading...</> : 'Upload Participant CSV'}
             </button>
           </div>
         </div>
@@ -246,7 +241,7 @@ export default function AdminStudents() {
         {/* CSV format reference */}
         <div className="card mb-4">
           <div className="card-header">
-            <span className="card-title">CSV Upload Format</span>
+            <span className="card-title">Institution CSV Upload Format</span>
             <span className="badge badge-blue">Accepted columns</span>
           </div>
           <code style={{
@@ -254,39 +249,21 @@ export default function AdminStudents() {
             background: 'var(--lgrey)', padding: '12px 16px', borderRadius: 8,
             color: 'var(--navy)', lineHeight: 2,
           }}>
-            serial_no, register_number, name, email, password, section<br />
-            1, 2301107031, Harikrishna K, hari@college.edu, pass123, A<br />
-            2, 2301107032, Priya S, priya@college.edu, pass456, B
+            serial_no, register_number, name, email, section<br />
+            1, 2301107031, Harikrishna K, hari@college.edu, A<br />
+            2, 2301107032, Priya S, priya@college.edu, B
           </code>
           <p className="text-xs text-muted" style={{ marginTop: 8 }}>
-            <strong>password</strong> column is optional — defaults to <code>ucos@123</code>.
-            Duplicate emails and register numbers are updated automatically, including password resets.
-            Students are linked to the current <strong>NOT_STARTED</strong> election automatically.
+            ℹ <strong>Passwords</strong> are managed by the platform. Admins provide the email/identity list only. 
+            Verification is handled automatically during participant login.
+            Duplicates are updated automatically. Linked to current <strong>NOT_STARTED</strong> election.
           </p>
         </div>
-
-        {/* Section summary */}
-        {Object.keys(sectionMap).length > 0 && (
-          <div className="stat-grid mb-4">
-            <div className="stat-card">
-              <div className="stat-label">Total Students</div>
-              <div className="stat-value">{students.length}</div>
-              <div className="stat-sub">all sections</div>
-            </div>
-            {Object.entries(sectionMap).sort().map(([sec, cnt]) => (
-              <div key={sec} className="stat-card green">
-                <div className="stat-label">Section {sec}</div>
-                <div className="stat-value">{cnt}</div>
-                <div className="stat-sub">students</div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Students table */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">All Students</span>
+            <span className="card-title">All Invited Participants</span>
             <div className="flex gap-2">
               <input className="form-input" placeholder="Search name or reg no…"
                 value={search} onChange={e => setSearch(e.target.value)}
@@ -304,20 +281,15 @@ export default function AdminStudents() {
           {loading ? (
             <div style={{ textAlign: 'center', padding: 52 }}><Spinner dark /></div>
           ) : students.length === 0 ? (
-            <EmptyState icon="👥" title="No students yet"
-              message="Upload a CSV file to add students in bulk, or wait for self-registrations." />
+            <EmptyState icon="👥" title="No participants yet"
+              message="Upload a CSV file to add participants in bulk, or wait for self-registrations." />
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th style={{ width: 52 }}>
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleSelectAllVisible}
-                        aria-label="Select all students"
-                      />
+                      <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
                     </th>
                     <th>Register No.</th>
                     <th>Student ID</th>
@@ -333,29 +305,18 @@ export default function AdminStudents() {
                   {students.map(s => (
                     <tr key={s.student_id}>
                       <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedStudentIds.includes(s.student_id)}
-                          onChange={() => toggleStudentSelection(s.student_id)}
-                          aria-label={`Select ${s.name}`}
-                        />
+                        <input type="checkbox" checked={selectedStudentIds.includes(s.student_id)} onChange={() => toggleStudentSelection(s.student_id)} />
                       </td>
                       <td><span className="code-chip">{s.register_number}</span></td>
                       <td><span className="code-chip">{s.full_student_id}</span></td>
                       <td>
                         <button onClick={() => setViewId(s.student_id)} style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          fontWeight: 600, color: 'var(--accent)', fontSize: '0.875rem',
-                          textDecoration: 'underline', fontFamily: 'var(--font)', padding: 0,
+                          background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', textDecoration: 'underline', padding: 0,
                         }}>{s.name}</button>
                       </td>
                       <td><Badge variant="blue">Sec {s.section}</Badge></td>
                       <td className="text-sm text-muted">{s.email}</td>
-                      <td>
-                        <span style={{ fontWeight: s.booked_count > 0 ? 700 : 400 }}>
-                          {s.booked_count || 0}
-                        </span>
-                      </td>
+                      <td>{s.booked_count || 0}</td>
                       <td>
                         {(s.confirmed_count || 0) > 0
                           ? <Badge variant="green">{s.confirmed_count} ✓</Badge>
@@ -363,10 +324,8 @@ export default function AdminStudents() {
                       </td>
                       <td>
                         <div className="flex gap-2">
-                          <button className="btn btn-ghost btn-sm"
-                            onClick={() => setViewId(s.student_id)}>View</button>
-                          <button className="btn btn-danger btn-sm"
-                            onClick={() => handleDelete(s.student_id, s.name)}>Remove</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setViewId(s.student_id)}>View</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.student_id, s.name)}>Remove</button>
                         </div>
                       </td>
                     </tr>
@@ -377,10 +336,7 @@ export default function AdminStudents() {
           )}
         </div>
 
-        {/* Student detail modal */}
-        {viewId && (
-          <StudentDetailModal studentId={viewId} onClose={() => setViewId(null)} />
-        )}
+        {viewId && <StudentDetailModal studentId={viewId} onClose={() => setViewId(null)} />}
       </main>
     </div>
   );

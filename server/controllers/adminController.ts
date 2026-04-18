@@ -140,10 +140,10 @@ const uploadStudentsCSV = async (req, res) => {
   try {
     const admin_id = req.user.id;
     if (!req.file) return res.status(400).json({ success: false, message: 'No CSV file uploaded.' });
-    const defaultPassword = normalizeText(req.body.initial_password || 'ucos@123');
-    if (defaultPassword.length < 8) {
-      return res.status(400).json({ success: false, message: 'Initial password must be at least 8 characters.' });
-    }
+    
+    // Admin no longer sets passwords. We use a dummy hash for invited students.
+    // They will verify identity and set their own password later.
+    const invitedDummyHash = await bcrypt.hash('invited_identity_verification_required_12345', 10);
 
     // Get active election
     const [elections] = await conn.execute(
@@ -177,7 +177,6 @@ const uploadStudentsCSV = async (req, res) => {
           const reg = normalizeRegisterNumber(row.register_number || row.reg_no || row.reg || '');
           const name = normalizeText(row.name || row.student_name || '');
           const email = normalizeEmail(row.email || '');
-          const pass = normalizeText(row.password || defaultPassword);
           const section = normalizeText(row.section || 'A').toUpperCase();
           const issues = [];
 
@@ -186,14 +185,12 @@ const uploadStudentsCSV = async (req, res) => {
           if (!email) issues.push('email is required');
           if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) issues.push('email format is invalid');
           if (!section) issues.push('section is required');
-          if (pass.length < 8) issues.push('password must be at least 8 characters');
-
           if (issues.length) {
             rowErrors.push(`Row ${rowNumber}: ${issues.join(', ')}`);
             return;
           }
 
-          students.push({ reg, name, email, pass, section, rowNumber });
+          students.push({ reg, name, email, section, rowNumber });
         })
         .on('end', resolve)
         .on('error', reject);
@@ -233,7 +230,6 @@ const uploadStudentsCSV = async (req, res) => {
           'SELECT student_id, email, register_number FROM students WHERE email=? OR register_number=?',
           [s.email, s.reg]
         );
-        const hash = await bcrypt.hash(s.pass, 10);
         const full_id = `PA${s.reg}`;
         let student_id;
 
@@ -250,9 +246,9 @@ const uploadStudentsCSV = async (req, res) => {
           student_id = (byEmail || byRegister).student_id;
           await conn.execute(
             `UPDATE students
-             SET register_number=?, full_student_id=?, name=?, email=?, password_hash=?, section=?, admin_id=?, election_id=?, is_approved=TRUE
+             SET register_number=?, full_student_id=?, name=?, email=?, section=?, admin_id=?, election_id=?, is_approved=TRUE
              WHERE student_id=?`,
-            [s.reg, full_id, s.name, s.email, hash, s.section, admin_id, election ? election.election_id : null, student_id]
+            [s.reg, full_id, s.name, s.email, s.section, admin_id, election ? election.election_id : null, student_id]
           );
 
           if (election && courses.length > 0) {
@@ -276,7 +272,7 @@ const uploadStudentsCSV = async (req, res) => {
             `INSERT INTO students
              (register_number, full_student_id, name, email, password_hash, section, admin_id, election_id, is_approved)
              VALUES (?,?,?,?,?,?,?,?,TRUE)`,
-            [s.reg, full_id, s.name, s.email, hash, s.section, admin_id,
+            [s.reg, full_id, s.name, s.email, invitedDummyHash, s.section, admin_id,
              election ? election.election_id : null]
           );
           student_id = result.insertId;
@@ -294,19 +290,7 @@ const uploadStudentsCSV = async (req, res) => {
           created++;
         }
 
-        if (smtpConfigured()) {
-          try {
-            await sendStudentCredentials(s.email, s.name, {
-              admin_id,
-              register_number: s.reg,
-              email: s.email,
-              password: s.pass,
-            });
-            emailed++;
-          } catch (mailErr) {
-            console.warn('Student credential email failed:', mailErr.message);
-          }
-        }
+        /* Skip automated emails for now as they contain credentials. Admin now only provides the invite list. */
       } catch (e) {
         skipped++;
         duplicateMessages.push(`Row ${s.rowNumber}: could not be imported`);
@@ -319,9 +303,7 @@ const uploadStudentsCSV = async (req, res) => {
       message: `CSV processed: ${created} students created, ${updated} updated, ${skipped} skipped${smtpConfigured() ? `, ${emailed} emailed` : ''}.`,
       created, updated, skipped, emailed,
       notes: [
-        `Initial password used: ${defaultPassword}`,
         ...duplicateMessages.slice(0, 10),
-        !smtpConfigured() ? 'SMTP is not configured, so student credential emails were skipped.' : null,
       ].filter(Boolean),
     });
   } catch (err) {
