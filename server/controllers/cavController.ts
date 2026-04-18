@@ -260,7 +260,7 @@ const applyViaCode = async (req, res) => {
 };
 
 // ── Student: Confirm Participation (Access Gate Step 2) ───────
-const confirmParticipation = async (req, res) => {
+export const confirmParticipation = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const student_id = req.user.id;
