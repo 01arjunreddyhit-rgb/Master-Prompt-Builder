@@ -326,8 +326,8 @@ const getPoolCalculation = async (req, res) => {
       invite_count: ic,
       course_count: cc,
       tokens_per_student: cc,
-      universal_pool: sc * cc,
-      formula: `${sc} students × ${cc} subjects = ${sc * cc} total seats`,
+      universal_pool: ic * cc,
+      formula: `${ic} invitees × ${cc} subjects = ${ic * cc} total seats`,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -418,24 +418,26 @@ const getChecklist = async (req, res) => {
   try {
     const { election_id } = req.params;
     const [elections] = await pool.execute('SELECT * FROM elections WHERE election_id=?', [election_id]);
-    const [students]  = await pool.execute('SELECT COUNT(*) as cnt FROM students WHERE election_id=?', [election_id]);
-    const [courses]   = await pool.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
-    const [tokens]    = await pool.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?', [election_id]);
-    const [seats]     = await pool.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=?', [election_id]);
+    const [invites]  = await pool.execute('SELECT COUNT(*) as cnt FROM election_email_invites WHERE election_id=?', [election_id]);
 
-    const sc = students[0].cnt;
-    const cc = courses[0].cnt;
-    const tc = tokens[0].cnt;
-    const st = seats[0].cnt;
+    const sc = Number(students[0].cnt);
+    const cc = Number(courses[0].cnt);
+    const tc = Number(tokens[0].cnt);
+    const st = Number(seats[0].cnt);
+    const ic = Number(invites[0].cnt);
+    const ec = elections[0];
+    const slotCap = ec.universal_slot_cap || 10000;
 
     const checklist = {
-      students: { ok: sc > 0, count: sc, label: 'Students registered' },
-      courses:  { ok: cc > 0, count: cc, label: 'Active courses created' },
-      tokens:   { ok: tc >= (sc * cc) && sc*cc > 0, count: tc, expected: sc*cc, label: 'Tokens generated' },
-      seats:    { ok: st >= (sc * cc) && sc*cc > 0, count: st, expected: sc*cc, label: 'Seats initialised' },
+      students: { ok: true, count: sc, label: 'Gate 1: Student Database (Audited)' },
+      courses:  { ok: cc > 0, count: cc, label: 'Gate 2: Active Subjects' },
+      tokens:   { ok: tc >= (ic * cc) && ic > 0, count: tc, expected: ic * cc, label: 'Gate 3: Tokens Issued (Invited)' },
+      seats:    { ok: st >= slotCap, count: st, expected: slotCap, label: 'Gate 4: Sovereign Slot Pool' },
     };
 
-    res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: elections[0] });
+    res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: ec });
+
+    res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: ec });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -448,34 +450,77 @@ const initElection = async (req, res) => {
     const { election_id } = req.params;
     await conn.beginTransaction();
 
-    const [students] = await conn.execute('SELECT student_id, register_number FROM students WHERE election_id=?', [election_id]);
-    const [courses]  = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+    const [invites] = await conn.execute('SELECT * FROM election_email_invites WHERE election_id=?', [election_id]);
+    const [courses] = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
 
-    if (!students.length || !courses.length) throw new Error('Students or courses missing.');
+    if (!courses.length) throw new Error('Courses missing. Create at least one subject before initialising.');
+    if (!invites.length) throw new Error('Invitation list (Phase 1) is empty. Upload emails before initialising.');
 
-    await conn.execute('DELETE FROM seats WHERE election_id=?', [election_id]);
-    await conn.execute('DELETE FROM student_tokens WHERE election_id=?', [election_id]);
+    const SLOT_CAP = 10000;
+    const invitedDummyHash = '$2a$12$DUMMYHASHFORINVITEDSTUDENTS';
 
-    const total = students.length * courses.length;
-    for (let i = 1; i <= total; i++) {
-      await conn.execute('INSERT INTO seats (seat_number, seat_code, election_id, is_available) VALUES (?,?,?,TRUE)', [i, `S-${String(i).padStart(4,'0')}`, election_id]);
-    }
-    for (const s of students) {
-      for (let t = 1; t <= courses.length; t++) {
-        await conn.execute('INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)', [s.student_id, election_id, t, buildTokenCode(s.register_number, election_id, t)]);
+    // 1. Create Shadow Students for any invitee not yet in the system
+    for (const inv of invites) {
+      const [existing] = await conn.execute('SELECT student_id FROM students WHERE email=? AND election_id=?', [inv.email, election_id]);
+      if (!existing.length) {
+        const [newStudent] = await conn.execute(
+          `INSERT INTO students (election_id, email, password_hash, name, full_student_id, register_number)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [election_id, inv.email, invitedDummyHash, inv.email.split('@')[0], inv.platform_id_given || null, inv.username_given || null]
+        );
+        inv.student_id = newStudent.insertId;
+      } else {
+        inv.student_id = existing[0].student_id;
       }
     }
 
+    // 2. Clear existing pre-start assets
+    await conn.execute('DELETE FROM seats WHERE election_id=?', [election_id]);
+    await conn.execute('DELETE FROM student_tokens WHERE election_id=?', [election_id]);
+
+    // 3. Batch insert 10,000 slots
+    const batchSize = 1000;
+    for (let i = 1; i <= SLOT_CAP; i += batchSize) {
+      const placeholders = [];
+      const values = [];
+      const end = Math.min(i + batchSize - 1, SLOT_CAP);
+      for (let j = i; j <= end; j++) {
+        placeholders.push('(?, ?, ?, TRUE)');
+        values.push(j, `SLOT-${String(j).padStart(5, '0')}`, election_id);
+      }
+      await conn.execute(
+        `INSERT INTO seats (seat_number, seat_code, election_id, is_available) VALUES ${placeholders.join(',')}`,
+        values
+      );
+    }
+
+    // 4. Issue tokens for all invited students
+    for (const s of invites) {
+      for (let t = 1; t <= courses.length; t++) {
+        const tokenCode = `A${s.student_id}-E${election_id}-T${t}`;
+        await conn.execute(
+          'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
+          [s.student_id, election_id, t, tokenCode]
+        );
+      }
+    }
+
+    // Update election with the sovereign cap
+    await conn.execute(
+      'UPDATE elections SET universal_slot_cap=?, status="NOT_STARTED" WHERE election_id=?',
+      [SLOT_CAP, election_id]
+    );
+
     await conn.commit();
-    res.json({ success: true, message: 'Initialised.' });
+    res.json({ success: true, message: `Sovereign Slot Pool (${SLOT_CAP} slots) and tokens for ${invites.length} invitees initialised successfully.` });
   } catch (err) {
     await conn.rollback();
+    console.error('initElection error:', err);
     res.status(500).json({ success: false, message: err.message });
   } finally {
     conn.release();
   }
 };
-
 // ── START ─────────────────────────────────────────────────────
 const startElection = async (req, res) => {
   try {

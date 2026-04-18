@@ -138,6 +138,7 @@ router.get('/join/:code',                      cavCtrl.resolveCode);
 
 // ── CAV — student ────────────────────────────────────────────
 router.post('/cav/apply',                      auth, studentOnly, cavCtrl.applyViaCode);
+router.post('/cav/confirm-participation',      auth, studentOnly, cavCtrl.confirmParticipation);
 router.post('/cav/form',                       auth, studentOnly, cavCtrl.submitUninvitedForm);
 router.put('/cav/name',                        auth, studentOnly, cavCtrl.updateDisplayName);
 router.get('/cav/participation',               auth, studentOnly, cavCtrl.getMyParticipation);

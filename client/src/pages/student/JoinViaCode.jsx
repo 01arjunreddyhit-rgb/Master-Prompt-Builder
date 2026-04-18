@@ -50,6 +50,13 @@ function DynamicForm({ fieldKeys, allMetadataValues, formData, setFormData }) {
 
 /* ── Invited student: verify pre-filled details popup (Access Gate) ── */
 function InviteVerifyStep({ election, inviteMetadata, identityComparison, onConfirm, onBack, loading }) {
+  const [subStep, setSubStep] = useState(1); // 1: Core Identity, 2: Supplementary
+  const [editableMetadata, setEditableMetadata] = useState({ ...inviteMetadata });
+
+  const handleFinish = () => {
+    onConfirm(editableMetadata);
+  };
+
   return (
     <div style={{ maxWidth: 540 }}>
       <div style={{ background: 'linear-gradient(135deg, #4F46E5, #6366F1)', borderRadius: 18, padding: '22px 24px', marginBottom: 20, color: 'white' }}>
@@ -58,38 +65,43 @@ function InviteVerifyStep({ election, inviteMetadata, identityComparison, onConf
         <div style={{ fontSize: '0.78rem', opacity: 0.8 }}>Hosted by {election.admin_name} · {election.college_name}</div>
       </div>
 
-      <div style={{ background: '#FDF2F8', border: '1.5px solid #FBCFE8', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
+      <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#DB2777', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>✦</div>
-          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#9D174D' }}>Access Gate: Identity Verification</div>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>✦</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#9A3412' }}>
+            {subStep === 1 ? 'Identity Verification Gate (Core)' : 'Supplementary Details Verification'}
+          </div>
         </div>
-        <div style={{ fontSize: '0.78rem', color: '#BE185D', lineHeight: 1.6 }}>
-          "The admin has granted you access to this election as the owner of this email address. The details below confirm your identity. Please verify before proceeding. If you believe this is incorrect, do not participate."
+        <div style={{ fontSize: '0.78rem', color: '#C2410C', lineHeight: 1.6 }}>
+          {subStep === 1 
+            ? "The admin has granted you access as the owner of this email. The Platform ID and Username below are auto-generated and immutable. Please verify they match your intended identity."
+            : "The details below were pre-filled by the admin. You may edit them if necessary. Any changes will be highlighted (Orange) for the admin's final audit."
+          }
         </div>
       </div>
 
-      {/* Primary Identity Fields (3-column comparison) */}
-      {identityComparison && (
+      {subStep === 1 ? (
+        /* Step 1: Core Identity (Immutable) */
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
-          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12 }}>Primary Identity Fields</div>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12 }}>Core Identity (Verified via Admin List)</div>
           <div style={{ background: 'var(--muted-bg)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
             <table style={{ width: '100%', fontSize: '0.74rem', borderCollapse: 'collapse' }}>
               <thead style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid var(--border)' }}>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>Field</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>Admin Given</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>Platform Value</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>Gate Field</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>2B: Admin Given</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-4)' }}>2A: Dashboard Detail</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(identityComparison).map(([key, f]) => (
-                  <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: f.is_match ? '#ECFDF544' : '#FEF2F2' }}>
+                  <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: f.is_match ? '#ECFDF544' : '#FFF7ED' }}>
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{f.field_label}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: 'var(--mono)', color: f.is_match ? '#059669' : '#DC2626' }}>{f.admin_value || '(Not provided)'}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: 'var(--mono)', color: f.is_match ? '#059669' : '#EA580C' }}>{f.admin_value || '(Blank)'}</td>
                     <td style={{ padding: '8px 10px', fontFamily: 'var(--mono)', fontWeight: 700 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         {f.platform_value}
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: f.is_match ? '#10B981' : '#F472B6' }} />
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: f.is_match ? '#10B981' : '#F59E0B' }} />
                       </span>
                     </td>
                   </tr>
@@ -98,31 +110,48 @@ function InviteVerifyStep({ election, inviteMetadata, identityComparison, onConf
             </table>
           </div>
           <div style={{ marginTop: 8, fontSize: '0.65rem', color: 'var(--text-4)', fontStyle: 'italic' }}>
-            Pink indicates a mismatch. This is an indicator only — you may still proceed if you are the correct recipient.
+            Platform ID and Username are determined by the software and cannot be changed.
           </div>
         </div>
-      )}
-
-      {/* Supplementary Details */}
-      {inviteMetadata && Object.keys(inviteMetadata).length > 2 && (
+      ) : (
+        /* Step 2: Supplementary Details (Editable) */
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
-          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Supplementary Details</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Editable Supplementary Details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             {Object.entries(inviteMetadata)
-              .filter(([k]) => !['email','platform_id','full_student_id','username','register_number'].includes(k))
-              .map(([key, val]) => (
-                <div key={key} style={{ background: 'var(--muted-bg)', padding: '6px 10px', borderRadius: 8 }}>
-                  <div style={{ fontSize: '0.58rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>{key.replace(/_/g, ' ')}</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{val || '—'}</div>
-                </div>
-              ))}
+              .filter(([k]) => !['email','platform_id','full_student_id','username','register_number','p_profile_id','p_username'].includes(k))
+              .map(([key, adminVal]) => {
+                const isMismatch = editableMetadata[key] !== adminVal;
+                return (
+                  <div key={key} style={{ background: isMismatch ? '#FFF7ED' : 'var(--muted-bg)', padding: '10px 12px', borderRadius: 10, border: isMismatch ? '1px solid #FFEDD5' : '1px solid transparent' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ fontSize: '0.58rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{key.replace(/_/g, ' ')}</div>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: isMismatch ? '#F59E0B' : '#10B981' }} />
+                    </div>
+                    <input 
+                      className="form-input" 
+                      style={{ fontSize: '0.82rem', padding: '4px 0', border: 'none', background: 'transparent', width: '100%', fontWeight: 600, outline: 'none' }}
+                      value={editableMetadata[key] || ''}
+                      onChange={e => setEditableMetadata(prev => ({ ...prev, [key]: e.target.value }))}
+                    />
+                    {isMismatch && <div style={{ fontSize: '0.5rem', color: '#C2410C', marginTop: 2 }}>Original: {adminVal || '(Blank)'}</div>}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 12 }}>
-        <Button variant="surface" onClick={onBack} style={{ flex: 1 }}>← Back</Button>
-        <Button variant="primary" onClick={onConfirm} loading={loading} style={{ flex: 2 }}>Verify & Continue →</Button>
+        <Button variant="surface" onClick={subStep === 1 ? onBack : () => setSubStep(1)} style={{ flex: 1 }}>← Back</Button>
+        <Button 
+          variant="primary" 
+          onClick={subStep === 1 ? () => setSubStep(2) : handleFinish} 
+          loading={loading} 
+          style={{ flex: 2 }}
+        >
+          {subStep === 1 ? 'Verify & Proceed →' : 'Confirm & Complete →'}
+        </Button>
       </div>
     </div>
   );
@@ -253,9 +282,42 @@ export default function JoinViaCode() {
   };
 
   // Step 2a: Invited student confirms
-  const confirmInvited = () => {
-    // Already applied in step 1, just navigate to done
-    setStep('done');
+  const confirmInvited = async (metadata) => {
+    setLoading(true); setMsg(null);
+    try {
+      // Build identity audit payload for Step 1 (Core Identity)
+      const audit = Object.entries(applyResult.identity_comparison || {}).map(([key, f]) => ({
+        key: f.field_label,
+        admin_value: f.admin_value,
+        student_value: f.platform_value,
+        is_mismatch: !f.is_match
+      }));
+
+      // Add Step 2 (Supplementary Details) mismatches to audit
+      Object.entries(applyResult.invite_metadata || {}).forEach(([key, adminVal]) => {
+        if (!['email','platform_id','full_student_id','username','register_number','p_profile_id','p_username'].includes(key)) {
+          if (metadata[key] !== adminVal) {
+            audit.push({
+              key: key.replace(/_/g, ' ').toUpperCase(),
+              admin_value: adminVal,
+              student_value: metadata[key],
+              is_mismatch: true
+            });
+          }
+        }
+      });
+
+      await api.post('/cav/confirm-participation', { 
+        election_id: applyResult.election_id, 
+        metadata, 
+        identity_audit: audit 
+      });
+      setStep('done');
+    } catch (err) { 
+      setMsg({ type: 'error', text: err.response?.data?.message || 'Verification failed.' }); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Step 2b: Uninvited student submits form

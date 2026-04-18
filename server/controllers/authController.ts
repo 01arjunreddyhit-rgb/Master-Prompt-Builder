@@ -275,11 +275,36 @@ const studentSelfRegister = async (req, res) => {
     );
 
     const [dupStudent] = await pool.execute(
-      'SELECT student_id FROM students WHERE email=? OR register_number=?',
+      'SELECT student_id, password_hash FROM students WHERE email=? OR register_number=?',
       [email, register_number]
     );
-    if (dupStudent.length) {
+    
+    const invitedDummyHash = '$2a$12$DUMMYHASHFORINVITEDSTUDENTS';
+    const isInvitedClaim = dupStudent.length > 0 && dupStudent[0].password_hash === invitedDummyHash;
+
+    if (dupStudent.length && !isInvitedClaim) {
       return res.status(409).json({ success: false, message: 'Student already registered.' });
+    }
+
+    if (isInvitedClaim) {
+      // Allow invited student to claim account by setting password
+      const password_hash = await bcrypt.hash(password, 12);
+      const otp = genOTP();
+      const otp_expires = new Date(Date.now() + 10 * 60 * 1000);
+      
+      await pool.execute(
+        'UPDATE students SET name=?, password_hash=?, section=?, is_verified=FALSE WHERE student_id=?',
+        [name, password_hash, section, dupStudent[0].student_id]
+      );
+      
+      // Still needs OTP verification to activate
+      await pool.execute(
+        'INSERT INTO pending_registrations (name, register_number, email, password_hash, section, admin_id, otp_code, otp_expires_at, status) VALUES (?,?,?,?,?,?,?,?,?)',
+        [name, register_number, email, password_hash, section, admin_id, otp, otp_expires, 'CLAIMING']
+      );
+      
+      try { await sendOTP(email, otp, name); } catch(e) {}
+      return res.status(200).json({ success: true, message: 'Invitation found! Please verify OTP to activate your account.', email });
     }
 
     const password_hash = await bcrypt.hash(password, 12);

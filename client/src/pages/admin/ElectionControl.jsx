@@ -415,6 +415,41 @@ export default function ElectionControl() {
 
             <div style={{ marginBottom: 20 }}><CAVCard electionId={selectedElection.election_id} /></div>
 
+            {/* ── Governance Data Feed (3 Phases) ── */}
+            {selectedElection.status === 'NOT_STARTED' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+                {/* Phase 1: Invitation List */}
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #3B82F6', padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 1: Invitation</div>
+                    <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#EFF6FF', color: '#1D4ED8', fontWeight: 700 }}>BLUE</span>
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload the primary list of eligible emails. This grants "Sole Right".</p>
+                  <button className="btn btn-sm w-full" style={{ background: '#3B82F6', color: 'white' }} onClick={() => navigate('/admin/students')}>Upload Phase 1 →</button>
+                </div>
+
+                {/* Phase 2A: Fixed Identity */}
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #DB2777', padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 2A: Fixed ID</div>
+                    <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#FDF2F8', color: '#9D174D', fontWeight: 700 }}>PINK</span>
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload Profile IDs and Usernames. These stay fixed in the Access Gate.</p>
+                  <button className="btn btn-sm w-full" style={{ background: '#DB2777', color: 'white' }} onClick={() => navigate('/admin/students')}>Upload Phase 2A →</button>
+                </div>
+
+                {/* Phase 2B: Supplementary */}
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #6366F1', padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 2B: Extra Metadata</div>
+                    <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#EEF2FF', color: '#4338CA', fontWeight: 700 }}>VIOLET</span>
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload Section, Department, etc. Editable by students (Orange Audit).</p>
+                  <button className="btn btn-sm w-full" style={{ background: '#6366F1', color: 'white' }} onClick={() => navigate('/admin/students')}>Upload Phase 2B →</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
               <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: '22px 26px' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Pre-Start Checklist</div>

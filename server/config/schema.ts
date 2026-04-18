@@ -20,6 +20,7 @@ const schemaStatements = [
     semester_tag TEXT,
     batch_tag TEXT,
     total_students INTEGER DEFAULT 126,
+    universal_slot_cap INTEGER DEFAULT 10000,
     final_courses_per_student INTEGER DEFAULT 2,
     faculty_count INTEGER DEFAULT 4,
     min_class_size INTEGER DEFAULT 45,
@@ -53,6 +54,9 @@ const schemaStatements = [
     election_id INTEGER,
     is_approved BOOLEAN DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT TRUE,
+    p_profile_id TEXT,
+    p_username TEXT,
+    metadata TEXT,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS pending_registrations (
@@ -295,6 +299,8 @@ const schemaStatements = [
     email TEXT NOT NULL,
     metadata_json TEXT,
     is_invited BOOLEAN DEFAULT TRUE,
+    p_profile_id TEXT,
+    p_username TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT election_email_invites_unique UNIQUE (election_id, email)
   )`,
@@ -317,7 +323,17 @@ const schemaStatements = [
     target_token_number INTEGER,
     reason_text TEXT,
     tokens_busted INTEGER DEFAULT 0,
-    seats_removed INTEGER DEFAULT 0,
+    slots_removed INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS student_identity_audit (
+    audit_id SERIAL PRIMARY KEY,
+    election_id INTEGER NOT NULL,
+    student_id INTEGER NOT NULL,
+    field_key TEXT NOT NULL,
+    admin_value TEXT,
+    student_value TEXT,
+    is_mismatch BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
 ];
@@ -370,6 +386,12 @@ const schemaPatchStatements = [
   `ALTER TABLE course_library DROP COLUMN IF EXISTS total_seats`,
   `ALTER TABLE elections ADD COLUMN IF NOT EXISTS stop_reason_text TEXT`,
   `ALTER TABLE seats ADD COLUMN IF NOT EXISTS room_ticket_id INTEGER`,
+  `ALTER TABLE students ADD COLUMN IF NOT EXISTS p_profile_id TEXT`,
+  `ALTER TABLE students ADD COLUMN IF NOT EXISTS p_username TEXT`,
+  `ALTER TABLE students ADD COLUMN IF NOT EXISTS metadata TEXT`,
+  `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS p_profile_id TEXT`,
+  `ALTER TABLE election_email_invites ADD COLUMN IF NOT EXISTS p_username TEXT`,
+  `ALTER TABLE elections ADD COLUMN IF NOT EXISTS universal_slot_cap INTEGER DEFAULT 10000`,
 ];
 
 export async function ensureDatabaseSchema() {

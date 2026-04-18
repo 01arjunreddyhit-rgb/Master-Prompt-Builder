@@ -8,7 +8,8 @@ const normalizeEmail = (value = '') => value.trim().toLowerCase();
 const normalizeText = (value = '') => value.trim();
 const normalizeRegisterNumber = (value = '') => value.trim().toUpperCase();
 const smtpConfigured = () => Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
-const allowedStudentColumns = ['serial_no', 'register_number', 'reg_no', 'reg', 'name', 'student_name', 'email', 'password', 'section'];
+const coreStudentColumns = ['register_number', 'reg_no', 'reg', 'name', 'student_name', 'email', 'section', 'p_profile_id', 'p_username'];
+const allowedStudentColumns = ['serial_no', ...coreStudentColumns];
 const buildTokenCode = (registerNumber, electionId, tokenNumber) => `A${registerNumber}-E${electionId}-T${tokenNumber}`;
 
 const deleteStudentRecords = async (conn, studentIds = []) => {
@@ -117,7 +118,7 @@ const reviewPending = async (req, res) => {
         impact = {
           tokensIssued: courseCount,
           poolExpansion: courseCount,
-          message: `By approving this student, you have issued ${courseCount} new tokens and increased the Universal Seat Pool by ${courseCount} units. This will impact the total seat availability.`
+          message: `By approving this student, you have issued ${courseCount} new tokens within the 10,000-slot universal pool. This increases current utilization by ${courseCount} units.`
         };
       }
 
@@ -143,7 +144,7 @@ const uploadStudentsCSV = async (req, res) => {
     
     // Admin no longer sets passwords. We use a dummy hash for invited students.
     // They will verify identity and set their own password later.
-    const invitedDummyHash = await bcrypt.hash('invited_identity_verification_required_12345', 10);
+    const invitedDummyHash = '$2a$12$DUMMYHASHFORINVITEDSTUDENTS';
 
     // Get active election
     const [elections] = await conn.execute(
@@ -152,7 +153,6 @@ const uploadStudentsCSV = async (req, res) => {
     );
     const election = elections[0] || null;
 
-    // Get courses if election exists
     let courses = [];
     if (election) {
       const [c] = await conn.execute(
@@ -174,40 +174,36 @@ const uploadStudentsCSV = async (req, res) => {
         })
         .on('data', (row) => {
           const rowNumber = students.length + rowErrors.length + 2;
-          const reg = normalizeRegisterNumber(row.register_number || row.reg_no || row.reg || '');
-          const name = normalizeText(row.name || row.student_name || '');
           const email = normalizeEmail(row.email || '');
-          const section = normalizeText(row.section || 'A').toUpperCase();
-          const issues = [];
-
-          if (!reg) issues.push('register_number is required');
-          if (!name) issues.push('name is required');
-          if (!email) issues.push('email is required');
-          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) issues.push('email format is invalid');
-          if (!section) issues.push('section is required');
-          if (issues.length) {
-            rowErrors.push(`Row ${rowNumber}: ${issues.join(', ')}`);
+          if (!email) {
+            rowErrors.push(`Row ${rowNumber}: email is required`);
+            return;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            rowErrors.push(`Row ${rowNumber}: email format is invalid`);
             return;
           }
 
-          students.push({ reg, name, email, section, rowNumber });
+          const data = { email, rowNumber, ...row };
+          const extra = {};
+          Object.keys(row).forEach(k => {
+            const key = normalizeText(k).toLowerCase();
+            if (key === 'email') return;
+            if (coreStudentColumns.includes(key)) {
+              data[key] = normalizeText(row[k]);
+            } else if (key !== 'serial_no') {
+              extra[key] = normalizeText(row[k]);
+            }
+          });
+          data.metadata = extra;
+          students.push(data);
         })
         .on('end', resolve)
         .on('error', reject);
     });
 
-    const unsupportedHeaders = headers.filter((header) => header && !allowedStudentColumns.includes(header));
-    if (unsupportedHeaders.length) {
-      return res.status(400).json({ success: false, message: `Unsupported CSV columns: ${unsupportedHeaders.join(', ')}.` });
-    }
-    if (!headers.includes('register_number') && !headers.includes('reg_no') && !headers.includes('reg')) {
-      return res.status(400).json({ success: false, message: 'CSV must include register_number (or reg_no / reg) column.' });
-    }
-    if (!headers.includes('name') && !headers.includes('student_name')) {
-      return res.status(400).json({ success: false, message: 'CSV must include name column.' });
-    }
     if (!headers.includes('email')) {
-      return res.status(400).json({ success: false, message: 'CSV must include email column.' });
+      return res.status(400).json({ success: false, message: 'CSV must include email column as the primary key.' });
     }
     if (rowErrors.length) {
       return res.status(400).json({
@@ -222,71 +218,80 @@ const uploadStudentsCSV = async (req, res) => {
     }
 
     await conn.beginTransaction();
-    let created = 0, updated = 0, skipped = 0, emailed = 0;
+    let created = 0, updated = 0, skipped = 0;
 
     for (const s of students) {
       try {
         const [dup] = await conn.execute(
-          'SELECT student_id, email, register_number FROM students WHERE email=? OR register_number=?',
-          [s.email, s.reg]
+          'SELECT student_id, email, register_number FROM students WHERE email=? AND admin_id=?',
+          [s.email, admin_id]
         );
-        const full_id = `PA${s.reg}`;
         let student_id;
 
         if (dup.length) {
-          const byEmail = dup.find((row) => row.email === s.email);
-          const byRegister = dup.find((row) => row.register_number === s.reg);
-
-          if (byEmail && byRegister && byEmail.student_id !== byRegister.student_id) {
-            skipped++;
-            duplicateMessages.push(`Row ${s.rowNumber}: email and register number belong to different students`);
-            continue;
+          student_id = dup[0].student_id;
+          
+          const updates = [];
+          const values = [];
+          if (s.register_number || s.reg_no || s.reg) {
+            const reg = normalizeRegisterNumber(s.register_number || s.reg_no || s.reg);
+            updates.push('register_number=?, full_student_id=?');
+            values.push(reg, `PA${reg}`);
+          }
+          if (s.name || s.student_name) {
+            updates.push('name=?');
+            values.push(s.name || s.student_name);
+          }
+          if (s.section) {
+            updates.push('section=?');
+            values.push(s.section);
+          }
+          if (s.p_profile_id) {
+            updates.push('p_profile_id=?');
+            values.push(s.p_profile_id);
+          }
+          if (s.p_username) {
+            updates.push('p_username=?');
+            values.push(s.p_username);
           }
 
-          student_id = (byEmail || byRegister).student_id;
-          await conn.execute(
-            `UPDATE students
-             SET register_number=?, full_student_id=?, name=?, email=?, section=?, admin_id=?, election_id=?, is_approved=TRUE
-             WHERE student_id=?`,
-            [s.reg, full_id, s.name, s.email, s.section, admin_id, election ? election.election_id : null, student_id]
-          );
-
-          if (election && courses.length > 0) {
-            const [existingTokens] = await conn.execute(
-              'SELECT token_id FROM student_tokens WHERE student_id=? AND election_id=?',
-              [student_id, election.election_id]
+          if (updates.length) {
+            await conn.execute(
+              `UPDATE students SET ${updates.join(', ')} WHERE student_id=?`,
+              [...values, student_id]
             );
-            if (!existingTokens.length) {
-              for (let i = 1; i <= courses.length; i++) {
-                const token_code = buildTokenCode(s.reg, election.election_id, i);
-                await conn.execute(
-                  'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
-                  [student_id, election.election_id, i, token_code]
-                );
-              }
-            }
           }
+
+          if (Object.keys(s.metadata).length) {
+            const [metaRows] = await conn.execute('SELECT metadata FROM students WHERE student_id=?', [student_id]);
+            let currentMeta = {};
+            try { currentMeta = JSON.parse(metaRows[0].metadata || '{}'); } catch {}
+            const newMeta = { ...currentMeta, ...s.metadata };
+            await conn.execute('UPDATE students SET metadata=? WHERE student_id=?', [JSON.stringify(newMeta), student_id]);
+          }
+
           updated++;
         } else {
+          const reg = s.register_number || s.reg_no || s.reg || 'PENDING';
           const [result] = await conn.execute(
             `INSERT INTO students
-             (register_number, full_student_id, name, email, password_hash, section, admin_id, election_id, is_approved)
-             VALUES (?,?,?,?,?,?,?,?,TRUE)`,
-            [s.reg, full_id, s.name, s.email, invitedDummyHash, s.section, admin_id,
-             election ? election.election_id : null]
+             (register_number, full_student_id, name, email, password_hash, section, admin_id, election_id, is_approved, metadata, p_profile_id, p_username)
+             VALUES (?,?,?,?,?,?,?,?,TRUE,?,?,?)`,
+            [
+              reg, 
+              reg === 'PENDING' ? 'PENDING' : `PA${reg}`, 
+              s.name || s.student_name || 'Invited Participant', 
+              s.email, 
+              invitedDummyHash, 
+              s.section || 'A', 
+              admin_id,
+              election ? election.election_id : null,
+              JSON.stringify(s.metadata),
+              s.p_profile_id || null,
+              s.p_username || null
+            ]
           );
           student_id = result.insertId;
-
-          // Generate tokens
-          if (election && courses.length > 0) {
-            for (let i = 1; i <= courses.length; i++) {
-              const token_code = buildTokenCode(s.reg, election.election_id, i);
-              await conn.execute(
-                'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
-                [student_id, election.election_id, i, token_code]
-              );
-            }
-          }
           created++;
         }
 
@@ -599,7 +604,7 @@ const bulkReviewPending = async (req, res) => {
       impact = {
         tokensIssued: totalTokens,
         poolExpansion: totalTokens,
-        message: `By approving ${processed.length} students, you have issued ${totalTokens} new tokens and increased the Universal Seat Pool by ${totalTokens} units. This will impact the total seat availability.`
+        message: `By approving ${processed.length} students, you have issued ${totalTokens} new tokens within the 10,000-slot universal pool. This increases current utilization by ${totalTokens} units.`
       };
     }
 

@@ -338,6 +338,37 @@ export default function AdminDashboard() {
           <KpiCard label="System Health" value="99.9%" sub="All services active" color="#7C3AED" />
         </div>
 
+        {/* SOVEREIGN INGESTION HUB (1, 2A, 2B) */}
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800, marginBottom: 20 }}>Sovereign Ingestion Hub (Invite List)</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #3B82F6', padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 1: Sole Right</div>
+              <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#EFF6FF', color: '#1D4ED8', fontWeight: 700 }}>BLUE</span>
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload the primary list of eligible emails.</p>
+            <button className="btn btn-sm w-full" style={{ background: '#3B82F6', color: 'white' }} onClick={() => navigate('/admin/students')}>Manage Phase 1 →</button>
+          </div>
+
+          <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #DB2777', padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 2A: Fixed Identity</div>
+              <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#FDF2F8', color: '#9D174D', fontWeight: 700 }}>PINK</span>
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload Profile IDs and Usernames.</p>
+            <button className="btn btn-sm w-full" style={{ background: '#DB2777', color: 'white' }} onClick={() => navigate('/admin/students')}>Manage Phase 2A →</button>
+          </div>
+
+          <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1.5px solid var(--border)', borderTop: '4px solid #6366F1', padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Phase 2B: Supplementary</div>
+              <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: 6, background: '#EEF2FF', color: '#4338CA', fontWeight: 700 }}>VIOLET</span>
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 16, lineHeight: 1.5 }}>Upload metadata (Section, Department).</p>
+            <button className="btn btn-sm w-full" style={{ background: '#6366F1', color: 'white' }} onClick={() => navigate('/admin/students')}>Manage Phase 2B →</button>
+          </div>
+        </div>
+
         {/* ELECTION GRID */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800 }}>Election Workspaces</h2>

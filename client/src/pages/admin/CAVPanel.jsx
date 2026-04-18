@@ -63,15 +63,15 @@ function ParticipantDetailModal({ p, onClose, onAction, acting, onSaveDetails })
       {/* Q2: Primary Identity Verification (3-column comparison) */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
-          Primary Identity Verification (Access Gate)
+          Identity Verification Gate (Core Identity)
         </div>
         <div style={{ background: 'var(--muted-bg)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
           <table style={{ width: '100%', fontSize: '0.76rem', borderCollapse: 'collapse' }}>
             <thead style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid var(--border)' }}>
               <tr>
-                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>Field</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>Admin Given</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>Platform Value</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>Gate Field</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>2B: Admin Given</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-4)' }}>2A: Dashboard Detail</th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +97,7 @@ function ParticipantDetailModal({ p, onClose, onAction, acting, onSaveDetails })
           </table>
         </div>
         <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', marginTop: 6, fontStyle: 'italic' }}>
-          Pink indicator means admin data doesn't match platform data. Student was still allowed to proceed.
+          Pink indicator means Admin Data (2B) doesn't match Dashboard Data (2A). Only the Email List (1) is mandatory for access.
         </div>
       </div>
 

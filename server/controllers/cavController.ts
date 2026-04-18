@@ -202,7 +202,7 @@ const applyViaCode = async (req, res) => {
 
     // Verify student email matches
     const [students] = await pool.execute(
-      'SELECT student_id, email, name, section FROM students WHERE student_id=?',
+      'SELECT student_id, email, name, section, full_student_id, register_number, p_profile_id, p_username FROM students WHERE student_id=?',
       [student_id]
     );
     if (!students.length) return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -234,57 +234,83 @@ const applyViaCode = async (req, res) => {
     const identity_comparison = isInvited ? {
       platform_id: {
         field_label: 'Platform ID',
-        admin_value: inviteData?.platform_id_given || null,
-        platform_value: student.full_student_id,
-        is_match: !inviteData?.platform_id_given || inviteData.platform_id_given === student.full_student_id,
+        admin_value: inviteData?.p_profile_id || null,
+        platform_value: student.p_profile_id || student.full_student_id,
+        is_match: !inviteData?.p_profile_id || inviteData.p_profile_id === (student.p_profile_id || student.full_student_id),
       },
       username: {
         field_label: 'Platform Username',
-        admin_value: inviteData?.username_given || null,
-        platform_value: student.register_number,
-        is_match: !inviteData?.username_given || inviteData.username_given === student.register_number,
+        admin_value: inviteData?.p_username || null,
+        platform_value: student.p_username || student.register_number,
+        is_match: !inviteData?.p_username || inviteData.p_username === (student.p_username || student.register_number),
       },
     } : null;
 
-    // Q2: For uninvited — build field_keys from invite_field_config or existing invite metadata
-    let fieldKeys = [];
-    if (!isInvited) {
-      const [elecRows] = await pool.execute('SELECT invite_field_config FROM elections WHERE election_id=?', [cav.election_id]);
-      if (elecRows[0]?.invite_field_config) {
-        try { fieldKeys = JSON.parse(elecRows[0].invite_field_config).map(f => f.key).filter(k => k !== 'email'); } catch {}
-      }
-      if (!fieldKeys.length) {
-        const [anyInvite] = await pool.execute(
-          'SELECT metadata_json FROM election_email_invites WHERE election_id=? AND metadata_json IS NOT NULL LIMIT 1',
-          [cav.election_id]
-        );
-        if (anyInvite.length && anyInvite[0].metadata_json) {
-          try { fieldKeys = Object.keys(JSON.parse(anyInvite[0].metadata_json))
-            .filter(k => !['email','platform_id','full_student_id','username','register_number'].includes(k)); } catch {}
-        }
-      }
-    }
-
-    // Insert participant application
-    await pool.execute(
-      'INSERT INTO election_participants (election_id, student_id, display_name, is_invited, metadata_json) VALUES (?, ?, ?, ?, ?)',
-      [cav.election_id, student_id, student.name, isInvited, metadata]
-    );
-
-    res.status(201).json({
+    res.status(200).json({
       success: true,
-      message: isInvited
-        ? 'Access Gate: You are on the eligible participant list. Please verify your identity details.'
-        : 'Application submitted. You were not on the initial invite list — please complete the supplementary details form.',
       election_id: cav.election_id,
       is_invited: isInvited,
       invite_metadata: metadata ? JSON.parse(metadata) : null,
-      field_keys: fieldKeys,
       identity_comparison,
     });
   } catch (err) {
     console.error('applyViaCode error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Student: Confirm Participation (Access Gate Step 2) ───────
+const confirmParticipation = async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const student_id = req.user.id;
+    const { election_id, metadata, identity_audit } = req.body;
+
+    if (!election_id) return res.status(400).json({ success: false, message: 'election_id required.' });
+
+    await conn.beginTransaction();
+
+    // Verify election status
+    const [elec] = await conn.execute('SELECT status, universal_slot_cap FROM elections WHERE election_id=?', [election_id]);
+    if (!elec.length) return res.status(404).json({ success: false, message: 'Election not found.' });
+    if (elec[0].status === 'STOPPED') return res.status(400).json({ success: false, message: 'This election is closed.' });
+
+    // Check slot availability (10k cap)
+    const [counts] = await conn.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?', [election_id]);
+    if (counts[0].cnt >= (elec[0].universal_slot_cap || 10000)) {
+      return res.status(403).json({ success: false, message: 'Slot Full! Maximum capacity reached for this election.' });
+    }
+
+    // Persist identity audit (Orange Logic)
+    if (Array.isArray(identity_audit)) {
+      for (const item of identity_audit) {
+        await conn.execute(
+          'INSERT INTO student_identity_audit (election_id, student_id, field_key, admin_value, student_value, is_mismatch) VALUES (?,?,?,?,?,?)',
+          [election_id, student_id, item.key, item.admin_value, item.student_value, item.is_mismatch]
+        );
+      }
+    }
+
+    // Save metadata to student account
+    await conn.execute(
+      'UPDATE students SET metadata=? WHERE student_id=?',
+      [JSON.stringify(metadata), student_id]
+    );
+
+    // Create participant entry
+    await conn.execute(
+      'INSERT INTO election_participants (election_id, student_id, display_name, is_invited, metadata_json, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [election_id, student_id, req.user.name, true, JSON.stringify(metadata), 'PENDING']
+    );
+
+    await conn.commit();
+    res.status(201).json({ success: true, message: 'Participation confirmed. Your identity has been audited and your account updated.' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('confirmParticipation error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    conn.release();
   }
 };
 
@@ -337,9 +363,23 @@ const bulkReviewParticipants = async (req, res) => {
       if (action === 'confirm') {
         await conn.execute('UPDATE election_participants SET status=?, confirmed_at=NOW() WHERE participant_id=?', ['CONFIRMED', pid]);
         await conn.execute('UPDATE students SET election_id=? WHERE student_id=? AND (election_id IS NULL OR election_id=?)', [p.election_id, p.student_id, p.election_id]);
+        
+        // Issue tokens if not already issued
+        const [existing] = await conn.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE student_id=? AND election_id=?', [p.student_id, p.election_id]);
+        if (existing[0].cnt === 0) {
+          const [courses] = await conn.execute('SELECT course_id FROM courses WHERE election_id=? AND is_active=TRUE', [p.election_id]);
+          for (let t = 1; t <= courses.length; t++) {
+            const tokenCode = `A${p.student_id}-E${p.election_id}-T${t}`;
+            await conn.execute(
+              'INSERT INTO student_tokens (student_id, election_id, token_number, token_code) VALUES (?,?,?,?)',
+              [p.student_id, p.election_id, t, tokenCode]
+            );
+          }
+        }
+
         await conn.execute(
           `INSERT INTO election_messages (election_id, student_id, message_type, title, body) VALUES (?,?,'CONFIRMATION',?,?)`,
-          [p.election_id, p.student_id, '✅ Access Confirmed!', `Welcome ${p.name}! You have been confirmed for the election.`]
+          [p.election_id, p.student_id, '✅ Access Confirmed!', `Welcome ${p.name}! You have been confirmed for the election and tokens have been issued.`]
         );
       } else {
         await conn.execute('UPDATE election_participants SET status=? WHERE participant_id=?', ['REJECTED', pid]);

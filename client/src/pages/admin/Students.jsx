@@ -89,6 +89,109 @@ function StudentDetailModal({ studentId, onClose }) {
   );
 }
 
+function PoolConfirmationModal({ data, onClose }) {
+  return (
+    <Modal title="Universal Pool Confirmation" onClose={onClose} maxWidth={480}>
+      <div style={{ textAlign: 'center', padding: '10px 0' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>📊</div>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>Calculation Verified</h3>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-3)', marginBottom: 24, lineHeight: 1.5 }}>
+          The system has verified the **Universal Slot Pool** configuration. This fixed capacity acts as your institutional buffer.
+        </p>
+        
+        <div style={{ background: 'var(--lgrey)', borderRadius: 14, padding: '20px 24px', marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Invitees</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent)' }}>{data.invite_count}</div>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Subjects</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent)' }}>{data.course_count}</div>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, textAlign: 'left' }}>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Fixed Slot Capacity</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--navy)' }}>{data.universal_slot_cap || '10,000'} Slots</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-4)', marginTop: 4 }}>
+              Decoupled Scarcity: Remaining slots stay empty to prevent over-enrollment.
+            </div>
+          </div>
+        </div>
+
+        <button className="btn btn-primary" onClick={onClose} style={{ width: '100%', padding: '12px' }}>
+          Confirm & Initialise Tokens →
+        </button>
+        <p style={{ fontSize: '0.65rem', color: 'var(--text-4)', marginTop: 12 }}>
+          Tokens and slots will be initialized based on this sovereign capacity during activation.
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+function CustomFieldsManager({ fields, onAdd, onRemove }) {
+  const [newField, setNewField] = useState('');
+  
+  const handleAdd = () => {
+    if (!newField.trim()) return;
+    onAdd(newField.trim().toLowerCase().replace(/\s+/g, '_'));
+    setNewField('');
+  };
+
+  const handleDownloadTemplate = (specificHeaders = null) => {
+    const core = ['email', 'register_number', 'name', 'section', 'p_profile_id', 'p_username'];
+    const headers = specificHeaders || [...core, ...fields];
+    const csvContent = headers.join(',') + '\n' + headers.map(() => '...').join(',');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `template_${headers[1] || 'basic'}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="card mb-4" style={{ border: '1px solid var(--accent-glow)', background: 'var(--accent-glow)' }}>
+      <div className="card-header" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+        <div className="flex justify-between items-center w-full">
+          <div>
+            <span className="card-title" style={{ color: 'var(--accent)', fontSize: '0.9rem' }}>Supplementary Details Config (Phase 2B)</span>
+            <Badge variant="blue">Dynamic Columns</Badge>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {['register_number', 'name', 'section'].map(f => (
+            <Badge key={f} variant="grey" style={{ padding: '6px 12px', borderRadius: 8, opacity: 0.6 }}>{f} (Core)</Badge>
+          ))}
+          {fields.map(f => (
+            <Badge key={f} variant="blue" style={{ padding: '6px 12px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {f}
+              <span onClick={() => onRemove(f)} style={{ cursor: 'pointer', fontWeight: 900, fontSize: '1rem', marginLeft: 4 }}>×</span>
+            </Badge>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Input 
+            placeholder="Add new field (e.g. Department, Year)..." 
+            value={newField} 
+            onChange={e => setNewField(e.target.value)}
+            style={{ flex: 1, background: 'white' }}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          />
+          <button className="btn btn-primary" onClick={handleAdd} style={{ padding: '0 20px' }}>+</button>
+        </div>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-4)', marginTop: 10 }}>
+          ℹ Added fields will appear in the <strong>Supplementary Details</strong> popup for students.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN COMPONENT ────────────────────────────────────────────
 export default function AdminStudents() {
   const [students, setStudents]     = useState([]);
@@ -98,9 +201,31 @@ export default function AdminStudents() {
   const [search, setSearch]         = useState('');
   const [section, setSection]       = useState('');
   const [uploadResult, setUploadResult] = useState(null);
+  const [poolConfirmation, setPoolConfirmation] = useState(null);
+  const [customFields, setCustomFields] = useState([]);
   const [viewId, setViewId]         = useState(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const fileRef = useRef();
+
+  useEffect(() => {
+    // Load existing custom fields from the election metadata if needed
+    // For now, we'll initialize from students data if available
+    if (students.length > 0) {
+      const core = ['student_id', 'register_number', 'name', 'email', 'section', 'election_id', 'full_student_id', 'confirmed_count', 'booked_count', 'tokens'];
+      const first = students[0];
+      const extra = Object.keys(first).filter(k => !core.includes(k) && !k.startsWith('p_'));
+      setCustomFields(extra);
+    }
+  }, [students]);
+
+  const addCustomField = (f) => {
+    if (customFields.includes(f)) return;
+    setCustomFields([...customFields, f]);
+  };
+
+  const removeCustomField = (f) => {
+    setCustomFields(customFields.filter(x => x !== f));
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -135,6 +260,9 @@ export default function AdminStudents() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setUploadResult({ ok: true, msg: [data.message, ...(data.notes || [])].join(' ') });
+      if (data.pool_confirmation) {
+        setPoolConfirmation(data.pool_confirmation);
+      }
       load();
     } catch (err) {
       const response = err.response?.data;
@@ -221,12 +349,69 @@ export default function AdminStudents() {
                 {bulkDeleting ? <><Spinner /> Removing...</> : `Remove Selected (${selectedStudentIds.length})`}
               </button>
             )}
-            <input type="file" accept=".csv" ref={fileRef}
-              onChange={handleCSVUpload} style={{ display: 'none' }} />
-            <button className="btn btn-primary"
-              onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? <><Spinner /> Uploading...</> : 'Upload Participant CSV'}
-            </button>
+          </div>
+        </div>
+
+        {/* Governance Data Feed (3 Phases) */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {/* Phase 1: Invitation List */}
+          <div className="card" style={{ borderTop: '4px solid var(--accent)' }}>
+            <div className="card-header">
+              <span className="card-title" style={{ fontSize: '0.8rem' }}>Phase 1: Invitation List</span>
+              <Badge variant="blue">Email Only</Badge>
+            </div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
+                Upload the primary list of eligible emails. This grants "Sole Right" to join.
+              </p>
+              <input type="file" accept=".csv" ref={fileRef} onChange={handleCSVUpload} style={{ display: 'none' }} />
+              <button className="btn btn-primary btn-sm w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                {uploading ? <Spinner /> : 'Upload Invitation CSV'}
+              </button>
+              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email']); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Download Template</a>
+              </div>
+            </div>
+          </div>
+
+          {/* Phase 2A: Fixed Identity */}
+          <div className="card" style={{ borderTop: '4px solid #DB2777' }}>
+            <div className="card-header">
+              <span className="card-title" style={{ fontSize: '0.8rem' }}>Phase 2A: Fixed Identity</span>
+              <Badge variant="pink">Immutable</Badge>
+            </div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
+                Upload Profile IDs and Usernames. These will be "Fixed" in the Access Gate.
+              </p>
+              <input type="file" accept=".csv" id="upload-2a" onChange={handleCSVUpload} style={{ display: 'none' }} />
+              <button className="btn btn-primary btn-sm w-full" style={{ background: '#DB2777', borderColor: '#DB2777' }} onClick={() => document.getElementById('upload-2a').click()} disabled={uploading}>
+                {uploading ? <Spinner /> : 'Upload 2A CSV'}
+              </button>
+              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', 'p_profile_id', 'p_username']); }} style={{ color: '#DB2777', textDecoration: 'underline' }}>Download Template</a>
+              </div>
+            </div>
+          </div>
+
+          {/* Phase 2B: Supplementary */}
+          <div className="card" style={{ borderTop: '4px solid #4F46E5' }}>
+            <div className="card-header">
+              <span className="card-title" style={{ fontSize: '0.8rem' }}>Phase 2B: Supplementary</span>
+              <Badge variant="purple">Editable</Badge>
+            </div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
+                Upload other metadata (Section, Department). Editable by students.
+              </p>
+              <input type="file" accept=".csv" id="upload-2b" onChange={handleCSVUpload} style={{ display: 'none' }} />
+              <button className="btn btn-primary btn-sm w-full" style={{ background: '#4F46E5', borderColor: '#4F46E5' }} onClick={() => document.getElementById('upload-2b').click()} disabled={uploading}>
+                {uploading ? <Spinner /> : 'Upload 2B CSV'}
+              </button>
+              <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email', ...customFields]); }} style={{ color: '#4F46E5', textDecoration: 'underline' }}>Download Template</a>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -249,9 +434,8 @@ export default function AdminStudents() {
             background: 'var(--lgrey)', padding: '12px 16px', borderRadius: 8,
             color: 'var(--navy)', lineHeight: 2,
           }}>
-            serial_no, register_number, name, email, section<br />
-            1, 2301107031, Harikrishna K, hari@college.edu, A<br />
-            2, 2301107032, Priya S, priya@college.edu, B
+            serial_no, register_number, name, email, section{customFields.length > 0 ? `, ${customFields.join(', ')}` : ''}<br />
+            1, 2301107031, Harikrishna K, hari@college.edu, A{customFields.length > 0 ? customFields.map(() => ', ...').join('') : ''}<br />
           </code>
           <p className="text-xs text-muted" style={{ marginTop: 8 }}>
             ℹ <strong>Passwords</strong> are managed by the platform. Admins provide the email/identity list only. 
@@ -259,6 +443,9 @@ export default function AdminStudents() {
             Duplicates are updated automatically. Linked to current <strong>NOT_STARTED</strong> election.
           </p>
         </div>
+
+        {/* Custom Fields Manager */}
+        <CustomFieldsManager fields={customFields} onAdd={addCustomField} onRemove={removeCustomField} />
 
         {/* Students table */}
         <div className="card">
@@ -337,6 +524,7 @@ export default function AdminStudents() {
         </div>
 
         {viewId && <StudentDetailModal studentId={viewId} onClose={() => setViewId(null)} />}
+        {poolConfirmation && <PoolConfirmationModal data={poolConfirmation} onClose={() => setPoolConfirmation(null)} />}
       </main>
     </div>
   );

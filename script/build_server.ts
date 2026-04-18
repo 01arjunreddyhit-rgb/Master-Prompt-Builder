@@ -2,7 +2,6 @@ import { build as esbuild } from "esbuild";
 import { readFile } from "fs/promises";
 
 const allowlist = [
-  "@google/generative-ai",
   "axios",
   "connect-pg-simple",
   "cors",
@@ -15,16 +14,11 @@ const allowlist = [
   "jsonwebtoken",
   "memorystore",
   "multer",
-  "nanoid",
   "nodemailer",
-  "openai",
   "passport",
   "passport-local",
   "pg",
-  "stripe",
-  "uuid",
   "ws",
-  "xlsx",
   "zod",
   "zod-validation-error",
 ];

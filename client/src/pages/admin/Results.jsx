@@ -29,16 +29,16 @@ function ChoiceResultsTable({ summary }) {
           </tr>
         </thead>
         <tbody>
-          {summary.map(c => (
-            <tr key={c.course_id} style={{ borderBottom: '1px solid var(--border)' }}>
-              <td style={{ padding: '11px 14px', fontWeight: 700 }}>{c.course_name}</td>
+          {(summary || []).map(c => (
+            <tr key={c?.course_id || Math.random()} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ padding: '11px 14px', fontWeight: 700 }}>{c?.course_name || 'Unknown Course'}</td>
               {tiers.map(n => (
                 <td key={n} style={{ textAlign: 'center', fontFamily: 'var(--mono)' }}>{c[`t${n}`] || '—'}</td>
               ))}
               <td style={{ textAlign: 'center', fontWeight: 800 }}>{c.total}</td>
               <td style={{ padding: '11px 14px' }}>
                 <div style={{ height: 8, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{ width: `${(c.total / (c.max_enrollment || 1)) * 100}%`, background: 'var(--accent)', height: '100%' }} />
+                  <div style={{ width: `${(Number(c?.total || 0) / (Number(c?.max_enrollment || 1))) * 100}%`, background: 'var(--accent)', height: '100%' }} />
                 </div>
               </td>
             </tr>
@@ -52,6 +52,10 @@ function ChoiceResultsTable({ summary }) {
 export default function AdminResults() {
   const { selectedElection } = useElection();
   const navigate = useNavigate();
+  const [choices, setChoices] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState(null);
   const [selectedSessions, setSelectedSessions] = useState([]);
   const [comparison, setComparison] = useState(null);
 
@@ -90,7 +94,16 @@ export default function AdminResults() {
     setComparison({ s1, s2 });
   };
 
-  if (!selectedElection && !loading) return null;
+  if (!selectedElection || loading) {
+    return (
+      <div className="app-shell">
+        <AdminSidebar />
+        <main className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Spinner dark />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -108,6 +121,13 @@ export default function AdminResults() {
 
         {loading ? (
           <div style={{ textAlign:'center', padding:60 }}><Spinner dark /></div>
+        ) : selectedElection?.status === 'NOT_STARTED' ? (
+          <div style={{ textAlign:'center', padding:'80px 20px', background:'var(--surface)', borderRadius:24, border:'1.5px dashed var(--border)' }}>
+             <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>⏳</div>
+             <h2 style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:'1.4rem', color:'var(--text)', marginBottom:8 }}>Election Not Started</h2>
+             <p style={{ color:'var(--text-4)', fontSize:'0.9rem', maxWidth:400, margin:'0 auto 24px' }}>Results and allocation sessions will appear here once the election has been initiated and student participation begins.</p>
+             <Button variant="primary" onClick={() => navigate('/admin/election')}>Go to Election Control →</Button>
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24 }}>
             <div>
@@ -115,8 +135,15 @@ export default function AdminResults() {
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Locked Choice Results</h3>
                   {choices && <Badge variant="navy">{choices.summary?.length || 0} Courses</Badge>}
-                </div>
-                {choices ? <ChoiceResultsTable summary={choices.summary || []} /> : <div style={{ padding: 40, textAlign: 'center' }}>No results locked.</div>}
+                {choices?.summary && choices.summary.length > 0 ? (
+                  <ChoiceResultsTable summary={choices.summary} />
+                ) : (
+                  <div style={{ padding: 60, textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 12 }}>🔒</div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-3)' }}>No results locked yet.</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-4)', marginTop: 4 }}>Locked results appear once the election is finalized.</div>
+                  </div>
+                )}
               </Card>
             </div>
             <div>
@@ -150,7 +177,9 @@ export default function AdminResults() {
                             <div style={{ fontWeight: 700, fontSize: '0.88rem', color: selected ? 'var(--accent)' : 'var(--text)' }}>{s.session_name}</div>
                             {selected && <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem' }}>✓</div>}
                           </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 4, fontFamily: 'var(--mono)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+                            {s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Unknown Date'}
+                          </div>
                         </div>
                       );
                     })}
