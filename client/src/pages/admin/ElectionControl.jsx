@@ -235,29 +235,31 @@ export default function ElectionControl() {
     } finally { setActionLoading(''); }
   };
 
-  // ── Q2: Stop Reason Repository ──
-  const [stopReasons, setStopReasons] = useState([]);
+  // ── UNIFIED REASONS REPOSITORY ──
+  const [reasons, setReasons] = useState([]);
   const [stopForm, setStopForm] = useState({ reason_text: '' });
   const [showStopReasonRepo, setShowStopReasonRepo] = useState(false);
-  const [newReasonForm, setNewReasonForm] = useState({ name: '', desc: '' });
+  const [newReasonForm, setNewReasonForm] = useState({ name: '', desc: '', type: 'STOP' });
 
-  const loadStopReasons = useCallback(() => {
-    api.get('/stop-reasons').then(r => setStopReasons(r.data.data)).catch(() => {});
+  const loadReasons = useCallback(() => {
+    api.get('/reasons').then(r => setReasons(r.data.data)).catch(() => {});
   }, []);
 
-  useEffect(() => { loadStopReasons(); }, [loadStopReasons]);
+  useEffect(() => { loadReasons(); }, [loadReasons]);
 
-  const addStopReason = async () => {
+  const addReason = async () => {
     if (!newReasonForm.name) return;
-    await api.post('/stop-reasons', { reason_name: newReasonForm.name, description: newReasonForm.desc });
-    setNewReasonForm({ name: '', desc: '' });
-    loadStopReasons();
+    await api.post('/reasons', { name: newReasonForm.name, description: newReasonForm.desc, reason_type: newReasonForm.type });
+    setNewReasonForm({ ...newReasonForm, name: '', desc: '' });
+    loadReasons();
   };
 
-  const deleteStopReason = async (id) => {
-    await api.delete(`/stop-reasons/${id}`);
-    loadStopReasons();
+  const deleteReason = async (id) => {
+    await api.delete(`/reasons/${id}`);
+    loadReasons();
   };
+
+  const stopReasons = reasons.filter(r => r.reason_type === 'STOP');
 
   // ── Scheduling state ──
   const [schedForm, setSchedForm] = useState({ window_start: '', window_end: '' });
@@ -279,14 +281,13 @@ export default function ElectionControl() {
 
   // ── Q2: Token Burst Control state ──
   const [showBustControl, setShowBustControl] = useState(false);
-  const [bustReasons, setBustReasons] = useState([]);
+  const bustReasons = reasons.filter(r => r.reason_type === 'BURST');
   const [bustHistory, setBustHistory] = useState([]);
   const [bustForm, setBustForm] = useState({ mode: 4, student_id: '', course_id: '', token_number: '', token_id: '', reason_text: '' });
   const [bustLoading, setBustLoading] = useState(false);
 
   const loadBurstData = useCallback(() => {
     if (!selectedElection) return;
-    api.get('/bust-reasons').then(r => setBustReasons(r.data.data)).catch(() => {});
     api.get(`/elections/${selectedElection.election_id}/bust-history`).then(r => setBustHistory(r.data.data)).catch(() => {});
   }, [selectedElection]);
 
@@ -472,15 +473,19 @@ export default function ElectionControl() {
                   {selectedElection.status === 'NOT_STARTED' && (
                     <button className="btn btn-success btn-full" onClick={() => action('start')} disabled={!checklist?.allReady}>▶ START ELECTION</button>
                   )}
-                  {selectedElection.status === 'ACTIVE' && (
+                  {selectedElection.status === 'ACTIVE' && !selectedElection.is_paused && (
                     <>
                       <button className="btn btn-warning btn-full" onClick={() => action('pause')}>⏸ PAUSE</button>
-                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>⏹ EARLY STOP</button>
+                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
                       <button className="btn btn-surface btn-full" style={{ color:'#DC2626' }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
                     </>
                   )}
-                  {selectedElection.status === 'PAUSED' && (
-                    <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
+                  {selectedElection.status === 'ACTIVE' && selectedElection.is_paused && (
+                    <>
+                      <button className="btn btn-success btn-full" onClick={() => action('resume')}>▶ RESUME</button>
+                      <button className="btn btn-danger btn-full" onClick={() => setShowStop(true)}>🛑 EARLY STOP</button>
+                      <button className="btn btn-surface btn-full" style={{ color:'#DC2626' }} onClick={() => setShowBustControl(true)}>💥 TOKEN BURST CONTROL</button>
+                    </>
                   )}
                   {selectedElection.status === 'STOPPED' && <Button variant="primary" onClick={() => navigate('/admin/results')}>View Results →</Button>}
                 </div>
@@ -497,7 +502,7 @@ export default function ElectionControl() {
               <label className="form-label">Termination Reason (Optional)</label>
               <div style={{ display:'flex', gap:8 }}>
                 <Select style={{ flex:1 }} value={stopForm.reason_text} onChange={e => setStopForm({ reason_text: e.target.value })}
-                  options={[{ value: '', label: '-- Select Reason --' }, ...stopReasons.map(r => ({ value: r.reason_name, label: r.reason_name }))]} />
+                  options={[{ value: '', label: '-- Select Reason --' }, ...stopReasons.map(r => ({ value: r.name, label: r.name }))]} />
                 <button className="btn btn-ghost btn-sm" onClick={() => {
                   const r = window.prompt('Enter custom reason:');
                   if (r) setStopForm({ reason_text: r });
@@ -514,16 +519,23 @@ export default function ElectionControl() {
 
         {/* ── REASON REPO MODAL ── */}
         {showStopReasonRepo && (
-          <Modal title="📁 Stop Reason Repository" onClose={() => setShowStopReasonRepo(false)}>
-            <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          <Modal title="📁 Unified Reasons Repository" onClose={() => setShowStopReasonRepo(false)}>
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <select className="form-input" style={{ width: '120px' }} value={newReasonForm.type} onChange={e => setNewReasonForm({...newReasonForm, type: e.target.value})}>
+                <option value="STOP">STOP</option>
+                <option value="BURST">BURST</option>
+                <option value="REMOVE">REMOVE</option>
+                <option value="FREEZE">FREEZE</option>
+                <option value="GENERAL">GENERAL</option>
+              </select>
               <Input placeholder="Reason Name" style={{ flex:1 }} value={newReasonForm.name} onChange={e => setNewReasonForm({...newReasonForm, name: e.target.value})} />
-              <Button variant="primary" onClick={addStopReason}>Add</Button>
+              <Button variant="primary" onClick={addReason}>Add</Button>
             </div>
             <div style={{ maxHeight:200, overflowY:'auto' }}>
-              {stopReasons.map(r => (
+              {reasons.map(r => (
                 <div key={r.reason_id} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
-                  <span style={{ fontSize:'0.85rem' }}>{r.reason_name}</span>
-                  <button onClick={() => deleteStopReason(r.reason_id)} style={{ color:'var(--red)', border:'none', background:'none', cursor:'pointer' }}>✕</button>
+                  <span style={{ fontSize:'0.85rem' }}>[{r.reason_type}] {r.name}</span>
+                  <button onClick={() => deleteReason(r.reason_id)} style={{ color:'var(--red)', border:'none', background:'none', cursor:'pointer' }}>✕</button>
                 </div>
               ))}
             </div>
@@ -549,7 +561,7 @@ export default function ElectionControl() {
               <div style={{ display:'flex', gap:8 }}>
                 <select className="form-input" value={bustForm.reason_text} onChange={e => setBustForm({...bustForm, reason_text: e.target.value})}>
                   <option value="">-- Select Reason --</option>
-                  {bustReasons.map(r => <option key={r.reason_id} value={r.reason_text}>{r.reason_text}</option>)}
+                  {bustReasons.map(r => <option key={r.reason_id} value={r.name}>{r.name}</option>)}
                 </select>
                 <button className="btn btn-ghost btn-sm" onClick={() => {
                   const r = window.prompt('Enter custom reason:');

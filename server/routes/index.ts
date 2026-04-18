@@ -97,16 +97,12 @@ router.post('/elections/:election_id/institution-csv', auth, adminOnly, upload.s
 // Q2: Token Burst Control (6 modes)
 router.post('/elections/:election_id/bust',      auth, adminOnly, electionCtrl.bustTokens);
 router.get('/elections/:election_id/bust-history', auth, adminOnly, electionCtrl.getBustHistory);
-// Q2: Burst Reason Repository
-router.get('/bust-reasons',                      auth, adminOnly, electionCtrl.getBurstReasons);
-router.post('/bust-reasons',                     auth, adminOnly, electionCtrl.addBurstReason);
-router.delete('/bust-reasons/:reason_id',        auth, adminOnly, electionCtrl.deleteBurstReason);
-router.put('/bust-reasons/:reason_id/default',   auth, adminOnly, electionCtrl.setDefaultBurstReason);
+// Q2: Unified Reasons Repository
+router.get('/reasons',                           auth, adminOnly, electionCtrl.getReasons);
+router.post('/reasons',                          auth, adminOnly, electionCtrl.addReason);
+router.delete('/reasons/:reason_id',             auth, adminOnly, electionCtrl.deleteReason);
+router.put('/reasons/:reason_id/default',        auth, adminOnly, electionCtrl.setDefaultReason);
 
-// Q2: Stop Reason Repository
-router.get('/stop-reasons',                      auth, adminOnly, electionCtrl.getStopReasons);
-router.post('/stop-reasons',                     auth, adminOnly, electionCtrl.addStopReason);
-router.delete('/stop-reasons/:reason_id',        auth, adminOnly, electionCtrl.deleteStopReason);
 
 // ── STUDENT ───────────────────────────────────────────────────
 router.get('/student/dashboard',         auth, studentOnly, studentCtrl.getStudentDashboard);

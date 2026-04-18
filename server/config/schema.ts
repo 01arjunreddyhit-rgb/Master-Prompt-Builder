@@ -34,6 +34,16 @@ const schemaStatements = [
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
   )`,
+  `CREATE TABLE IF NOT EXISTS reasons_repository (
+    reason_id SERIAL PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    reason_type TEXT DEFAULT 'GENERAL',
+    related_domain TEXT,
+    description TEXT,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
   `CREATE TABLE IF NOT EXISTS stop_reason_repository (
     reason_id SERIAL PRIMARY KEY,
     admin_id TEXT NOT NULL,
