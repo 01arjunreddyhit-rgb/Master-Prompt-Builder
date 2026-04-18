@@ -305,8 +305,8 @@ const uploadStudentsCSV = async (req, res) => {
     await conn.commit();
     res.json({
       success: true,
-      message: `CSV processed: ${created} students created, ${updated} updated, ${skipped} skipped${smtpConfigured() ? `, ${emailed} emailed` : ''}.`,
-      created, updated, skipped, emailed,
+      message: `CSV processed: ${created} students created, ${updated} updated, ${skipped} skipped.`,
+      created, updated, skipped,
       notes: [
         ...duplicateMessages.slice(0, 10),
       ].filter(Boolean),
