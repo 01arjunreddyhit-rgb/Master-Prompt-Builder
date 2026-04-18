@@ -37,51 +37,63 @@ export default function StudentLogin() {
           <div className="logo">UC<span style={{ color: 'var(--emerald)' }}>OS</span></div>
           <div className="tagline">Universal Course Opting System</div>
         </div>
-        <h2 className="auth-title">Student Login</h2>
-        <p className="auth-sub">Sign in to select your elective courses</p>
+        <h2 className="auth-title">Student Portal</h2>
+        <p className="auth-sub">Secure Course Allocation & Token Management</p>
 
         {redirect !== '/student' && (
-          <div className="alert alert-info" style={{ marginBottom: 16, fontSize: '0.82rem' }}>
-            🔑 Login to continue to your election application
+          <div className="animate-in" style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '10px 14px', borderRadius: 12, color: 'var(--emerald)', fontSize: '0.78rem', marginBottom: 20, textAlign: 'center', fontWeight: 600 }}>
+            🔑 Authentication required to proceed.
           </div>
         )}
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <div className="animate-in" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: 12, color: '#ef4444', fontSize: '0.82rem', marginBottom: 24, textAlign: 'center', fontWeight: 600 }}>
+            ⚠️ {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="form-group">
-            <label className="form-label">Admin ID</label>
+            <label className="form-label" style={{ color: 'var(--text-3)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>Institution Admin ID</label>
             <input className="form-input" placeholder="ADM-2026-001"
-              value={form.admin_id} onChange={set('admin_id')}
-              style={{ fontFamily: 'var(--mono)' }} required />
-            <div className="form-hint">Provided by your institution admin</div>
+              value={form.admin_id} onChange={set('admin_id')} required 
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', color: 'white', fontFamily: 'var(--mono)' }} />
           </div>
+          
           <div className="form-group">
-            <label className="form-label">Email or Register Number</label>
-            <input className="form-input" placeholder="you@college.edu or 2401107109"
-              value={form.email} onChange={set('email')} required />
+            <label className="form-label" style={{ color: 'var(--text-3)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>Roll No / Email</label>
+            <input className="form-input" placeholder="2401107109 or you@college.edu"
+              value={form.email} onChange={set('email')} required 
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', color: 'white' }} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ color: 'var(--text-3)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>Password</label>
             <input className="form-input" type="password" placeholder="••••••••"
-              value={form.password} onChange={set('password')} required />
+              value={form.password} onChange={set('password')} required 
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', color: 'white' }} />
           </div>
-          <div style={{ textAlign: 'right', marginBottom: 20, marginTop: -10 }}>
+          
+          <div style={{ textAlign: 'right', marginTop: -8 }}>
             <button type="button" onClick={() => setShowForgot(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--emerald)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              style={{ background: 'none', border: 'none', color: 'var(--emerald)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
               Forgot Password?
             </button>
           </div>
-          <button className="btn btn-success btn-full btn-lg" type="submit" disabled={loading}>
+
+          <button className="btn btn-success btn-full btn-lg" type="submit" disabled={loading}
+            style={{ borderRadius: 14, height: 52, fontSize: '0.95rem', fontWeight: 800, marginTop: 10, boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.3)' }}>
             {loading ? <Spinner /> : 'Login to Student Portal'}
           </button>
         </form>
 
-        <div className="auth-footer" style={{ marginTop: 20 }}>
-          New student? <Link to="/student/register" style={{ color: 'var(--emerald)' }}>Request Access</Link>
-        </div>
-        <div className="auth-footer">
-          <Link to="/admin/login">Admin Login →</Link>
+        <div style={{ marginTop: 32, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="auth-footer" style={{ fontSize: '0.8rem', color: 'var(--text-4)' }}>
+            Need institutional access? <Link to="/student/register" style={{ color: 'var(--emerald)', fontWeight: 700 }}>Request Enrollment</Link>
+          </div>
+          <div className="auth-footer">
+            <Link to="/admin/login" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', opacity: 0.6 }}>Admin Management Portal →</Link>
+          </div>
         </div>
       </div>
       {showForgot && <ForgotPasswordModal role="student" onClose={() => setShowForgot(false)} />}

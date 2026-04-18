@@ -1,4 +1,5 @@
 import pool from "./db";
+import { log } from "../log";
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS admins (
@@ -406,10 +407,25 @@ const schemaPatchStatements = [
 ];
 
 export async function ensureDatabaseSchema() {
+  log("Initializing database schema...");
   for (const statement of schemaStatements) {
-    await pool.execute(statement);
+    try {
+      await pool.execute(statement);
+    } catch (err) {
+      // Ignore "already exists" errors
+      if (!err.message.includes('already exists') && !err.message.includes('Duplicate column')) {
+        console.warn('Schema statement failed:', statement, err.message);
+      }
+    }
   }
   for (const statement of schemaPatchStatements) {
-    await pool.execute(statement);
+    try {
+      await pool.execute(statement);
+    } catch (err) {
+      if (!err.message.includes('already exists') && !err.message.includes('Duplicate column')) {
+        console.warn('Schema patch failed:', statement, err.message);
+      }
+    }
   }
+  log("Database schema check complete.");
 }

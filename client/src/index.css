@@ -752,4 +752,102 @@ td { padding: 11px 15px; vertical-align: middle; color: var(--text-2); }
 .timer-input { background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1); border-radius: 10px; color: white; padding: 8px 12px; font-family: var(--mono); font-size: 0.85rem; outline: none; }
 .timer-input:focus { border-color: var(--accent-3); background: rgba(255,255,255,0.08); }
 
+/* ── PREMIUM AUTH UI ─────────────────────────────────────────── */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #020617;
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.auth-bg-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: float-slow 20s infinite alternate;
+  pointer-events: none;
+}
+.auth-bg-glow.student {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+  right: -100px;
+  bottom: -100px;
+}
+
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 50px 50px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  pointer-events: none;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  z-index: 10;
+  animation: fade-up 0.6s ease-out;
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.auth-logo .logo {
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: white;
+  margin-bottom: 8px;
+}
+.auth-logo .logo-accent { color: var(--accent); }
+.auth-logo .tagline {
+  font-size: 0.75rem;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.auth-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.auth-sub {
+  font-size: 0.88rem;
+  color: var(--text-4);
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+@keyframes float-slow {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(100px, 50px); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
 

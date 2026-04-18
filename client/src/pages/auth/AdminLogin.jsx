@@ -38,38 +38,49 @@ export default function AdminLogin() {
           <div className="logo">UC<span className="logo-accent">OS</span></div>
           <div className="tagline">Universal Course Opting System</div>
         </div>
-        <h2 className="auth-title">Admin Login</h2>
-        <p className="auth-sub">Sign in to manage your institution's election</p>
+        <h2 className="auth-title">Admin Console</h2>
+        <p className="auth-sub">Institutional Governance & Allocation Control</p>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <div className="animate-in" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: 12, color: '#ef4444', fontSize: '0.82rem', marginBottom: 24, textAlign: 'center', fontWeight: 600 }}>
+            ⚠️ {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="form-group">
-            <label className="form-label">Email Address</label>
+            <label className="form-label" style={{ color: 'var(--text-3)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>Admin Email</label>
             <input className="form-input" type="email" placeholder="hod@college.edu"
-              value={form.email} onChange={set('email')} required />
+              value={form.email} onChange={set('email')} required 
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', color: 'white' }} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ color: 'var(--text-3)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>Security Key</label>
             <input className="form-input" type="password" placeholder="••••••••"
-              value={form.password} onChange={set('password')} required />
+              value={form.password} onChange={set('password')} required 
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', color: 'white' }} />
           </div>
-          <div style={{ textAlign: 'right', marginBottom: 20, marginTop: -10 }}>
+          
+          <div style={{ textAlign: 'right', marginTop: -8 }}>
             <button type="button" onClick={() => setShowForgot(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
-              Forgot Password?
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              Recover Access?
             </button>
           </div>
-          <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}>
-            {loading ? <Spinner /> : 'Login to Admin Panel'}
+
+          <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}
+            style={{ borderRadius: 14, height: 52, fontSize: '0.95rem', fontWeight: 800, marginTop: 10, boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.3)' }}>
+            {loading ? <Spinner /> : 'Sign In to Dashboard'}
           </button>
         </form>
 
-        <div className="auth-footer" style={{ marginTop: 20 }}>
-          New institution? <Link to="/admin/register">Create Admin Account</Link>
-        </div>
-        <div className="auth-footer">
-          <Link to="/login">Student Login →</Link>
+        <div style={{ marginTop: 32, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="auth-footer" style={{ fontSize: '0.8rem', color: 'var(--text-4)' }}>
+            Institutional representative? <Link to="/admin/register" style={{ color: 'var(--accent)', fontWeight: 700 }}>Request Access</Link>
+          </div>
+          <div className="auth-footer">
+            <Link to="/login" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', opacity: 0.6 }}>Student Login Portal →</Link>
+          </div>
         </div>
       </div>
 
