@@ -419,6 +419,10 @@ const getChecklist = async (req, res) => {
     const { election_id } = req.params;
     const [elections] = await pool.execute('SELECT * FROM elections WHERE election_id=?', [election_id]);
     const [invites]  = await pool.execute('SELECT COUNT(*) as cnt FROM election_email_invites WHERE election_id=?', [election_id]);
+    const [students] = await pool.execute('SELECT COUNT(*) as cnt FROM students WHERE election_id=?', [election_id]);
+    const [courses] = await pool.execute('SELECT COUNT(*) as cnt FROM courses WHERE election_id=? AND is_active=TRUE', [election_id]);
+    const [tokens] = await pool.execute('SELECT COUNT(*) as cnt FROM student_tokens WHERE election_id=?', [election_id]);
+    const [seats] = await pool.execute('SELECT COUNT(*) as cnt FROM seats WHERE election_id=?', [election_id]);
 
     const sc = Number(students[0].cnt);
     const cc = Number(courses[0].cnt);
@@ -434,8 +438,6 @@ const getChecklist = async (req, res) => {
       tokens:   { ok: tc >= (ic * cc) && ic > 0, count: tc, expected: ic * cc, label: 'Gate 3: Tokens Issued (Invited)' },
       seats:    { ok: st >= slotCap, count: st, expected: slotCap, label: 'Gate 4: Sovereign Slot Pool' },
     };
-
-    res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: ec });
 
     res.json({ success: true, checklist, allReady: Object.values(checklist).every(c => c.ok), election: ec });
   } catch (err) {
