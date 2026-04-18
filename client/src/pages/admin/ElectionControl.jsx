@@ -239,6 +239,30 @@ export default function ElectionControl() {
     } finally { setActionLoading(''); }
   };
 
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    try {
+      const { data } = await api.post('/elections', form);
+      setMsg({ type: 'success', text: data.message });
+      setShowCreate(false);
+      selectElection(data.election);
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Create failed.' }); }
+    finally { setLoading(false); }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    try {
+      const { data } = await api.put(`/elections/${selectedElection.election_id}`, form);
+      setMsg({ type: 'success', text: data.message });
+      setShowEdit(false);
+      loadStatus(selectedElection.election_id);
+    } catch (err) { setMsg({ type: 'error', text: err.response?.data?.message || 'Update failed.' }); }
+    finally { setLoading(false); }
+  };
+
   // ── UNIFIED REASONS REPOSITORY ──
   const [reasons, setReasons] = useState([]);
   const [stopForm, setStopForm] = useState({ reason_text: '' });
@@ -396,7 +420,7 @@ export default function ElectionControl() {
                   </div>
                 </div>
                 {selectedElection.status === 'NOT_STARTED' && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => setShowEdit(true)}>✏ Edit</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setFormState(selectedElection); setShowEdit(true); }}>✏ Edit</button>
                 )}
               </div>
 
@@ -620,7 +644,83 @@ export default function ElectionControl() {
           </Modal>
         )}
 
-        {/* Rest of modals (Create, Edit, Burst, etc.) remain as they were */}
+        {/* ── CREATE MODAL ── */}
+        {showCreate && (
+          <Modal title="✨ Create New Election" onClose={() => setShowCreate(false)}>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label className="form-label">Election Title</label>
+                <Input placeholder="e.g. Autumn Semester 2026" value={form.election_name} onChange={setF('election_name')} required />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Semester Tag</label>
+                  <Input placeholder="e.g. SEM-5" value={form.semester_tag} onChange={setF('semester_tag')} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Batch Tag</label>
+                  <Input placeholder="e.g. 2023-27" value={form.batch_tag} onChange={setF('batch_tag')} />
+                </div>
+              </div>
+              <Button type="submit" variant="primary" className="btn-full" disabled={loading}>{loading ? <Spinner /> : 'Create Election Workspace'}</Button>
+            </form>
+          </Modal>
+        )}
+
+        {/* ── EDIT MODAL ── */}
+        {showEdit && (
+          <Modal title="✏ Edit Election Details" onClose={() => setShowEdit(false)}>
+            <form onSubmit={handleUpdate}>
+              <div className="form-group">
+                <label className="form-label">Election Title</label>
+                <Input value={form.election_name} onChange={setF('election_name')} required />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Semester Tag</label>
+                  <Input value={form.semester_tag} onChange={setF('semester_tag')} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Batch Tag</label>
+                  <Input value={form.batch_tag} onChange={setF('batch_tag')} />
+                </div>
+              </div>
+              <div className="alert alert-info" style={{ fontSize: '0.75rem', marginTop: 16 }}>
+                💡 Advanced allocation parameters (min/max size) can be adjusted in the Allocation Panel after initialization.
+              </div>
+              <Button type="submit" variant="primary" className="btn-full" style={{ marginTop: 20 }} disabled={loading}>{loading ? <Spinner /> : 'Save Changes'}</Button>
+            </form>
+          </Modal>
+        )}
+
+        {/* ── POOL CONFIRMATION MODAL ── */}
+        {showPoolConfirm && poolData && (
+          <Modal title="📊 Pool Initialization Confirmation" onClose={() => setShowPoolConfirm(false)}>
+            <div style={{ background: 'var(--muted-bg)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginBottom: 14 }}>The system will generate the Universal Seat Pool based on current governance data:</div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Invite List Count:</span> <strong>{poolData.invite_count}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Active Subjects:</span> <strong>{poolData.course_count}</strong></div>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--accent)', fontWeight: 700 }}>
+                  <span>Total Universal Pool:</span>
+                  <span>{poolData.universal_pool} Seats</span>
+                </div>
+              </div>
+              <div style={{ marginTop: 14, fontSize: '0.7rem', color: 'var(--text-4)', fontStyle: 'italic' }}>Formula: {poolData.formula}</div>
+            </div>
+            <div className="alert alert-warning" style={{ fontSize: '0.75rem', marginBottom: 20 }}>
+              <strong>Caution:</strong> Re-initializing will clear all existing seats and token assignments for this election.
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowPoolConfirm(false)}>Cancel</button>
+              <button className="btn btn-success" style={{ flex: 2 }} onClick={confirmInit} disabled={poolConfirmLoading}>
+                {poolConfirmLoading ? <Spinner /> : 'Confirm & Initialize'}
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {/* ── BURST MODAL ── */}
         {showBustControl && (
           <Modal title="💥 Token Burst Control" onClose={() => setShowBustControl(false)}>
              <div className="form-group">
