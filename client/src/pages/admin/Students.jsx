@@ -217,8 +217,8 @@ export default function AdminStudents() {
   };
 
   const handleDownloadTemplate = (specificHeaders = null) => {
-    const core = ['email', 'register_number', 'name', 'section', 'p_profile_id', 'p_username'];
-    const headers = specificHeaders || [...core, ...customFields];
+    const core = ['serial_no', 'register_number', 'name', 'email', 'section'];
+    const headers = specificHeaders || [...core, 'p_profile_id', 'p_username', ...customFields];
     const csvContent = headers.join(',') + '\n' + headers.map(() => '...').join(',');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -360,6 +360,9 @@ export default function AdminStudents() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button className="btn btn-ghost" onClick={() => handleDownloadTemplate()} style={{ border: '1px solid var(--border)', background: 'white' }}>
+              📥 Download Master Template (Full)
+            </button>
             {!!selectedStudentIds.length && (
               <button className="btn btn-danger"
                 onClick={handleBulkDelete} disabled={bulkDeleting}>
@@ -375,18 +378,18 @@ export default function AdminStudents() {
           <div className="card" style={{ borderTop: '4px solid var(--accent)' }}>
             <div className="card-header">
               <span className="card-title" style={{ fontSize: '0.8rem' }}>Phase 1: Invitation List</span>
-              <Badge variant="blue">Email Only</Badge>
+              <Badge variant="blue">Core Identity</Badge>
             </div>
             <div style={{ padding: '0 20px 20px' }}>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
-                Upload the primary list of eligible emails. This grants "Sole Right" to join.
+                Upload the primary list of eligible participants.
               </p>
               <input type="file" accept=".csv" ref={fileRef} onChange={handleCSVUpload} style={{ display: 'none' }} />
               <button className="btn btn-primary btn-sm w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 {uploading ? <Spinner /> : 'Upload Invitation CSV'}
               </button>
               <div style={{ marginTop: 8, fontSize: '0.65rem', textAlign: 'center' }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['email']); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Download Template</a>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleDownloadTemplate(['serial_no', 'register_number', 'name', 'email', 'section']); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Download Template</a>
               </div>
             </div>
           </div>
@@ -399,7 +402,7 @@ export default function AdminStudents() {
             </div>
             <div style={{ padding: '0 20px 20px' }}>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
-                Upload Profile IDs and Usernames. These will be "Fixed" in the Access Gate.
+                Upload Profile IDs and Usernames. Fixed in the Access Gate.
               </p>
               <input type="file" accept=".csv" id="upload-2a" onChange={handleCSVUpload} style={{ display: 'none' }} />
               <button className="btn btn-primary btn-sm w-full" style={{ background: '#DB2777', borderColor: '#DB2777' }} onClick={() => document.getElementById('upload-2a').click()} disabled={uploading}>
@@ -419,7 +422,7 @@ export default function AdminStudents() {
             </div>
             <div style={{ padding: '0 20px 20px' }}>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 12 }}>
-                Upload other metadata (Section, Department). Editable by students.
+                Upload other metadata (Section, Dept). Editable by students.
               </p>
               <input type="file" accept=".csv" id="upload-2b" onChange={handleCSVUpload} style={{ display: 'none' }} />
               <button className="btn btn-primary btn-sm w-full" style={{ background: '#4F46E5', borderColor: '#4F46E5' }} onClick={() => document.getElementById('upload-2b').click()} disabled={uploading}>
@@ -444,7 +447,7 @@ export default function AdminStudents() {
         <div className="card mb-4">
           <div className="card-header">
             <span className="card-title">Institution CSV Upload Format</span>
-            <span className="badge badge-blue">Accepted columns</span>
+            <Badge variant="blue">Accepted columns</Badge>
           </div>
           <code style={{
             display: 'block', fontSize: '0.8rem', fontFamily: 'var(--mono)',
