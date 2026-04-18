@@ -142,9 +142,9 @@ const uploadStudentsCSV = async (req, res) => {
     const admin_id = req.user.id;
     if (!req.file) return res.status(400).json({ success: false, message: 'No CSV file uploaded.' });
     
-    // Admin no longer sets passwords. We use a dummy hash for invited students.
-    // They will verify identity and set their own password later.
-    const invitedDummyHash = '$2a$12$DUMMYHASHFORINVITEDSTUDENTS';
+    // TEMPORARY FOR TESTING: Admin requested all uploaded students to have 'Ptu@123' as default password.
+    // We dynamically hash it here so they can log in immediately for the test.
+    const invitedDummyHash = await bcrypt.hash('Ptu@123', 12);
 
     // Get active election
     const [elections] = await conn.execute(
